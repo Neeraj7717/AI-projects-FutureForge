@@ -3,7 +3,7 @@ import os
 import shutil
 
 import yaml
-from config import var
+from config import settings
 
 
 class directory_operations:
@@ -50,7 +50,7 @@ class directory_operations:
         Returns:
             str: The path to the frames directory.
         """
-        config = var.Settings()
+        config = settings.Settings()
         return f"./{config.root_path}/{sourceId}/frames/"
 
     @staticmethod
@@ -64,7 +64,7 @@ class directory_operations:
         Returns:
             str: The path to the images directory.
         """
-        config = var.Settings()
+        config = settings.Settings()
         return f"./{config.root_path}/{sourceId}/images/"
 
     @staticmethod
@@ -78,7 +78,7 @@ class directory_operations:
         Returns:
             str: The path to the videos directory.
         """
-        config = var.Settings()
+        config = settings.Settings()
         return f"./{config.root_path}/{sourceId}/videos/"
 
     @staticmethod

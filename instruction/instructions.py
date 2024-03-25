@@ -1,127 +1,137 @@
-import json
-from fastapi import FastAPI
-from kafka import KafkaProducer
+from pymongo import MongoClient
+from pymongo.collection import ReturnDocument
 from utils.mongo_operations import MongoDBConnector
-from config.var import Settings
-
-# Initialize FastAPI app
-app = FastAPI()
+from kafka import KafkaProducer
+from config.settings import Settings
+import json
 
 # Load configurations
 config = Settings()
 kafka_url = config.kafka_url
 video_instruction_kafka_topic = config.video_instruction_kafka_topic
 
-# Create a Kafka producer
-producer = KafkaProducer(bootstrap_servers=kafka_url)
+class TaskGraph:
+    def __init__(self, steps):
+        self.graph = self.build_graph(steps)
 
-# Define Node class for graph
-class Node:
-    def __init__(self, val=0, neighbors=None):
-        self.val = val
-        self.neighbors = neighbors if neighbors is not None else []
+    def build_graph(self, steps):
+        graph = {}
+        for i in range(1, len(steps) + 1):
+            graph[i] = i + 1 if i < len(steps) else None
+        return graph
 
-# Define steps and build graph
-steps = {
-    0: "Greetings!",
-    1: "Pick up the phone and its case.",
-    2: "Assemble the Case to phone.",
-    3: "Take the charger in your hand and connect it to phone.",
-    4: "Turn on the flashlight on your phone.",
-    5: "Turn off the flash light and place your phone down.",
-    6: "Well Done! Your task is completed.",
-}
+    def get_next(self, current_step):
+        return self.graph.get(current_step)
 
-def build_graph(steps):
-    graph = {}
-    for i in range(len(steps)):
-        graph[i] = Node(i)
-    # Define graph connections
-    graph[0].neighbors = [graph[1]]
-    graph[1].neighbors = [graph[2]]
-    graph[2].neighbors = [graph[3]]
-    graph[3].neighbors = [graph[4]]
-    graph[4].neighbors = [graph[5]]
-    graph[5].neighbors = [graph[6]]
-    return graph
+class TaskManager:
+    def __init__(self, db_uri="mongodb://localhost:27017/", db_name="testing", collection_name="state", steps={}):
+        self.client = MongoClient(db_uri)
+        self.db = self.client[db_name]
+        self.collection = self.db[collection_name]
+        self.steps = steps
+        self.task_graph = TaskGraph(steps)
+        self.mongodb = MongoDBConnector()
+        # Create a Kafka producer
+        self.producer = KafkaProducer(bootstrap_servers=kafka_url)
 
-# Initialize graph
-graph = build_graph(steps)
+    def get_current_step(self, sessionId, sourceId):
+        document = self.collection.find_one({"sessionId": sessionId, "sourceId": sourceId})
+        if document:
+            # Check if 'currentStep' field exists; if not, add it with a value of 1
+            if 'currentStep' not in document:
+                self.collection.update_one(
+                    {"_id": document["_id"]},
+                    {"$set": {"currentStep": 1}}
+                )
+                return 1
+            else:
+                return document['currentStep']
+        else:
+            # This condition might not be needed anymore, but kept for safety
+            self.collection.insert_one({"sessionId": sessionId, "sourceId": sourceId, "currentStep": 1})
+            return 1
 
-# Track completed tasks
-task_completed = [False for i in range(len(steps)+1)]
-start = {}
-end = {}
-prev_step = {}
+    def update_step(self, sessionId, step):
+        # Updates the currentStep. Assumes document exists, but handles the case where currentStep might not.
+        self.collection.update_one(
+            {"sessionId": sessionId},
+            {"$set": {"currentStep": step}}
+        )
 
-# Define function to complete task
-def complete_task(file):
-    """Complete a task and send instruction to the user."""
-    sourceId = file["sourceId"]
-    task = file["task"]
-    manualId = int(file["manualId"])
-    sessionId = file["sessionId"]
-    mongodb = MongoDBConnector()
-    manual = mongodb.get_document_by_id(document_id=manualId)
+    def reset_step(self, sessionId):
+        self.update_step(sessionId, 1)
 
-    # Initialize task tracking for sourceId
-    if sourceId not in prev_step:
-        start[sourceId] = 0
-        end[sourceId] = 5
-        prev_step[sourceId] = [False for i in range(len(steps))]
+    def get_next_step(self, sessionId, sourceId, task, manualId):
+        manual = self.mongodb.get_document_by_id(document_id=int(manualId))
+        current_step = self.get_current_step(sessionId, sourceId)
+        total_steps = len(self.steps)
+        next_step = self.task_graph.get_next(current_step)
 
-    t = False
-    
-    # Check if task is in graph's neighbors
-    for n in graph[start[sourceId]].neighbors:
-        if n.val == task and not prev_step[sourceId][task]:
-            t = True
-            prev_step[sourceId][task] = True
-            start[sourceId] = n.val
-
-    if t:
-        # Send instruction for the next task
-        for n in graph[start[sourceId]].neighbors:
-            step_details = manual["steps"][n.val - 1]
+        if current_step == total_steps and task == 0:
+            print("----------")
+            print("Well Done! Your task is completed. Starting over.")
+            self.reset_step(sessionId)
+            step_details = manual["steps"][-1]
+            print(step_details["text"])
             message = {
                 "sessionId": sessionId,
                 "instructionUrl": step_details["url"],
                 "manualId": manualId
             }
-            producer.send(
+            self.producer.send(
                 video_instruction_kafka_topic,
                 value=json.dumps(message).encode("utf-8"),
             )
-            return message
-
-    elif start[sourceId] != end[sourceId]:
-        # Send instruction for pending tasks
-        for n in graph[start[sourceId]].neighbors:
-            if not prev_step[sourceId][n.val]:
-                step_details = manual["steps"][n.val - 1]
+            return self.steps[1]
+        elif task == 0 or task != current_step:
+            print("======")
+            step_details = manual["steps"][current_step - 1]
+            print(step_details["text"])
+            message = {
+                "sessionId": sessionId,
+                "instructionUrl": step_details["url"],
+                "manualId": manualId
+            }
+            self.producer.send(
+                video_instruction_kafka_topic,
+                value=json.dumps(message).encode("utf-8"),
+            )
+            print(current_step)
+            return self.steps[current_step]
+        elif task == current_step:
+            print("++++++++")
+            print(next_step)
+            if next_step is not None:
+                self.update_step(sessionId, next_step)
+                step_details = manual["steps"][next_step - 1]
+                print(step_details["text"])
                 message = {
                     "sessionId": sessionId,
                     "instructionUrl": step_details["url"],
                     "manualId": manualId
                 }
-                producer.send(
+                self.producer.send(
                     video_instruction_kafka_topic,
                     value=json.dumps(message).encode("utf-8"),
                 )
-                return message
+                print(next_step)
+                return self.steps.get(next_step, "Please perform the next step.")
+            else:
+                return "Well Done! Your task is completed. Please confirm to start over."
 
-    # If all tasks completed, reset and send completion message
-    if start[sourceId] == end[sourceId]:
-        start[sourceId] = 0
-        prev_step[sourceId] = [False for i in range(len(steps))]
-        step_details = manual["steps"][n.val - 1]
-        message = {
-            "sessionId": sessionId,
-            "instructionUrl": step_details["url"],
-            "manualId": manualId
-        }
-        producer.send(
-            video_instruction_kafka_topic,
-            value=str(json.dumps(message).encode("utf-8")),
-        )
-        return message
+# Example usage with dynamic steps and graph implementation
+# steps = {
+#     1: "Pick up the phone and its case.",
+#     2: "Assemble the Case to phone.",
+#     3: "Take the charger in your hand and connect it to phone.",
+#     4: "Turn on the flashlight on your phone.",
+#     5: "Turn off the flashlight and put your phone down"
+# }
+
+# task_manager = TaskManager(steps=steps)
+# sessionId= 1  # Example identifiers
+
+# # Simulate user actions
+# print(task_manager.get_next_step(sessionId, 1, 0, 1))  # User does nothing, prompt for step 1
+# # print(task_manager.get_next_step(sessionId, sourceId, 1))  # User completes step 1, prompt for step 2
+# # Continue this pattern as needed

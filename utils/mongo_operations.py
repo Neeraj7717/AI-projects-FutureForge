@@ -1,11 +1,11 @@
 import pymongo
-from config.var import Settings
+from config.settings import Settings
 
 config = Settings()
 
 class MongoDBConnector:
     def __init__(self):
-        self.connection_string = config.mongo_connection_string
+        self.connection_string = config.mongo_connection_string_manual
         self.database_name = config.database_name
         self.collection_name = config.collection_name
         self.client = None

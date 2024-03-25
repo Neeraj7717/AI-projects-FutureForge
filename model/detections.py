@@ -1,12 +1,14 @@
 import os
 import json
 import logging
+import pymongo
 from kafka import KafkaProducer
 from ultralytics import YOLO
 from utils.cv2Operations import cv2_operations
 from instruction.instructions import complete_task
-from config.var import Settings
+from config.settings import Settings
 from utils.directoryOperations import directory_operations
+from instruction.instructions import TaskManager
 
 # Configuring logging settings
 logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -14,11 +16,26 @@ logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s 
 # Load configurations from settings
 config = Settings()
 
+map = {
+    1 : ["case", "mobile"],
+    2 : ["case"],
+    3 : ["case", "charger"],
+    4 : ["flash"],
+    0 : []
+}
+
 class Detections:
     """Class for performing object detection and assigning tasks based on detections."""
 
     def __init__(self):
         """Initialize object detection model and other necessary parameters."""
+        self.steps = {
+            1: "Pick up the phone and its cases.",
+            2: "Assemble the Case to phone.",
+            3: "Take the charger in your hand and connect it to phone.",
+            4: "Turn on the flashlight on your phone.",
+            5: "Turn off the flashlight and put your phone down"
+        }
         self.model_path = config.path_of_model
         self.model = YOLO(self.model_path, "v8")
         self.frames_path = config.frames_path
@@ -26,8 +43,50 @@ class Detections:
         self.video_details_kafka_topic = config.video_details_kafka_topic
         self.detections = {}  # Dictionary to store detections for each sourceId
         self.shared_path = config.shared_path
+        self.client = pymongo.MongoClient("mongodb://localhost:27017/")  # Connect to MongoDB
+        self.db = self.client["testing"]  # Use or create a database
+        self.collection = self.db["detections"]
+        self.task_manager = TaskManager(steps=self.steps)
+    
+    def store_detection(self, sourceId, task, sessionId):
+        """Store or update detections in MongoDB."""
+        # Check if the document with the given sourceId already exists
+        existing_document = self.collection.find_one({"sourceId": sourceId})
+        if existing_document:
+            # Check if the sessionId matches the existing one
+            if existing_document.get("sessionId") == sessionId:
+                # Update the existing document by appending the new task
+                updated_tasks = existing_document.get("tasks", [])  # Get existing tasks or an empty list
+                updated_tasks.append(task)  # Append the new task
+                # Update the document with the updated tasks list
+                self.collection.update_one(
+                    {"sourceId": sourceId},
+                    {"$set": {"tasks": updated_tasks}}
+                )
+            else:
+                # Empty the existing task list and update with the new item
+                self.collection.update_one(
+                    {"sourceId": sourceId},
+                    {"$set": {"tasks": [task], "sessionId": sessionId}}
+                )
+        else:
+            # Insert a new document with the task as a list
+            data = {"sourceId": sourceId, "tasks": [task], "sessionId": sessionId}
+            self.collection.insert_one(data)
 
-    def action_detector(self, sourceId, file, sessionId, manualId):
+    def get_detection(self, sourceId):
+        """Retrieve tasks from MongoDB."""
+        data = self.collection.find_one({"sourceId": sourceId})
+        if data:
+            return data["tasks"]
+        else:
+            return None
+
+    def remove_detection(self, sourceId):
+        """Remove detections from MongoDB."""
+        self.collection.delete_one({"sourceId": sourceId})
+
+    def action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
 
         Args:
@@ -44,8 +103,9 @@ class Detections:
             detection_output = self.model.predict(source=file, conf=0.25, save=False)
             dic = vars(detection_output[0])
             names = dic["names"]
-            classs = dic["boxes"].cpu().numpy()
-            things_present = list(map(lambda i: names[i], classs.cls))
+            detected_class = dic["boxes"].cpu().numpy()
+            things_present = [names[i] for i in detected_class.cls]
+            print("things_present==================", things_present)
 
             # Draw bounding boxes on the image
             a = detection_output[0].boxes
@@ -53,7 +113,7 @@ class Detections:
             file_name = os.path.basename(file)
             path_to_save_frames = directory_operations.get_frames_path(sourceId)
             path_to_save_frames = path_to_save_frames + file_name
-            
+            print(path_to_save_frames)
             try:
                 cv2_operations().draw_bounding_boxes(file, xyxy, things_present, path_to_save_frames)
                 logging.info("Bounding Boxes done")
@@ -75,46 +135,39 @@ class Detections:
                 return e
 
             # Assign task based on detections
-            task = self.assign_task(things_present, sourceId)
+            task = self.assign_task(things_present, sourceId, sessionId)
             if task is not None:
-                response = complete_task(file={"sourceId": sourceId, "task": task, "manualId": manualId,"sessionId":sessionId})
+                print("===========task", task)
+                response = self.task_manager.get_next_step(sessionId, sourceId, task, manualId)
                 logging.info(f"Response from graph: {response}")
+                return things_present, response
             return things_present
         except Exception as e:
             logging.error(f"Error occurred: {e}")
             return e
 
-    def assign_task(self, things_present, sourceId):
-        """Assign task based on detected objects.
+    def assign_task(self, things_present, sourceId, sessionId):
+        """Perform object detection on the provided image file."""
+        try:
+            matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
 
-        Args:
-            things_present (list): List of objects detected in the image.
-            sourceId (str): Unique identifier for the source.
+            # Converting the filter object to a list and getting the first item
+            task = next(matching_keys, None)
 
-        Returns:
-            int: Task identifier.
-        """
-        task = None
-        if "case" in things_present and "mobile" in things_present:
-            task = 1
-        elif "charger" in things_present:
-            task = 3
-        elif "flash" in things_present:
-            task = 4
-        elif not things_present:
-            task = 5
-        elif "case" in things_present:
-            task = 2
+            # Store detections in MongoDB
+            self.store_detection(sourceId, task, sessionId)
 
-        # Store detected tasks for each sourceId
-        if sourceId in self.detections:
-            self.detections[sourceId].append(task)
-        else:
-            self.detections[sourceId] = [task]
+            # Retrieve detections from MongoDB
+            saved_detections = self.get_detection(sourceId)
+            if saved_detections:
+                print("Retrieved detections from MongoDB:", saved_detections)
 
-        # Check if a consistent task has been detected
-        if len(self.detections[sourceId]) == 3 and len(set(self.detections[sourceId])) == 1:
-            return task
-        elif len(set(self.detections[sourceId])) > 1:
-            self.detections[sourceId] = []  # Reset detections if inconsistent
-            return None
+            if len(saved_detections) == 3 and len(set(saved_detections)) == 1:
+                return task
+            elif len(set(saved_detections)) > 1:
+                self.remove_detection(sourceId)
+                return None
+
+        except Exception as e:
+            logging.error(f"Error occurred: {e}")
+            return e
