@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  via-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    network_mode: host
+    container_name: via-api
+    volumes:
+      - "/media/eizen/HDD1/images1:/usr/app/images"
+    restart: unless-stopped
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile1
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "7000:80"
+    volumes:
+      - '/media/eizen/HDD1/images1:/usr/share/nginx/html/images'
