@@ -5,7 +5,7 @@ import pymongo
 from kafka import KafkaProducer
 from ultralytics import YOLO
 from utils.cv2Operations import cv2_operations
-from instruction.instructions import complete_task
+# from instruction.instructions import complete_task
 from config.settings import Settings
 from utils.directoryOperations import directory_operations
 from instruction.instructions import TaskManager
@@ -43,7 +43,7 @@ class Detections:
         self.video_details_kafka_topic = config.video_details_kafka_topic
         self.detections = {}  # Dictionary to store detections for each sourceId
         self.shared_path = config.shared_path
-        self.client = pymongo.MongoClient("mongodb://localhost:27017/")  # Connect to MongoDB
+        self.client = pymongo.MongoClient("mongodb://Eizen:Eizen123@183.82.116.237:27017/")  # Connect to MongoDB
         self.db = self.client["testing"]  # Use or create a database
         self.collection = self.db["detections"]
         self.task_manager = TaskManager(steps=self.steps)

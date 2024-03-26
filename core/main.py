@@ -1,3 +1,6 @@
+import argparse
+import asyncio
+import datetime
 from fastapi import FastAPI, File, UploadFile
 from model.detections import Detections
 import uvicorn
@@ -31,16 +34,41 @@ async def detect_hand(input_data: Input):
         dict: Dictionary containing the output of hand detection.
     """
     # Extract input data
+    a=datetime.datetime.now()
     file = input_data.file
     sourceId = input_data.sourceId
     sessionId = input_data.sessionId
     manualId = input_data.manualId
     
     # Perform hand detection
-    output = detector.action_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+    asyncio.create_task(detector_action_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
+    print((datetime.datetime.now() - a).total_seconds() * 1000,"<---------------")
 
-    return {"output": output}
+    return {"output": []}
+
+async def detector_action_detector(file, sourceId, sessionId, manualId):
+    """
+    Asynchronous function to perform hand detection.
+    
+    Args:
+        file (str): File path.
+        sourceId (str): Source ID.
+        sessionId (str): Session ID.
+        manualId (str): Manual ID.
+    """
+    
+    # Perform hand detection (Replace with your actual implementation)
+    await asyncio.sleep(0)  # Simulate some asynchronous task
+    await detector.action_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
 
 # Run the FastAPI application
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8108)
+    parser = argparse.ArgumentParser(description="Run FastAPI server with custom port")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8108,
+        help="Port number to run the server on (default: 8078)",
+    )
+    args = parser.parse_args()
+    uvicorn.run(app, host="0.0.0.0", port=args.port)

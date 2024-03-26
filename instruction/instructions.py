@@ -24,7 +24,7 @@ class TaskGraph:
         return self.graph.get(current_step)
 
 class TaskManager:
-    def __init__(self, db_uri="mongodb://localhost:27017/", db_name="testing", collection_name="state", steps={}):
+    def __init__(self, db_uri="mongodb://Eizen:Eizen123@183.82.116.237:27017/", db_name="testing", collection_name="state", steps={}):
         self.client = MongoClient(db_uri)
         self.db = self.client[db_name]
         self.collection = self.db[collection_name]
