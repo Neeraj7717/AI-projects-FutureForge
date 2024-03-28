@@ -1,6 +1,8 @@
+import base64
 import os
 import json
 import logging
+import subprocess
 import pymongo
 from kafka import KafkaProducer
 from ultralytics import YOLO
@@ -9,12 +11,20 @@ from utils.cv2Operations import cv2_operations
 from config.settings import Settings
 from utils.directoryOperations import directory_operations
 from instruction.instructions import TaskManager
-
-# Configuring logging settings
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import cv2
 
 # Load configurations from settings
 config = Settings()
+
+# Configure the root logger to output logs to the terminal
+logging.basicConfig(level=config.log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Get the root logger
+logger = logging.getLogger()
+
+# Add a StreamHandler to the logger to output logs to the terminal
+console_handler = logging.StreamHandler()
+logger.addHandler(console_handler)
 
 map = {
     1 : ["case", "mobile"],
@@ -41,11 +51,10 @@ class Detections:
         self.frames_path = config.frames_path
         self.kafka_url = config.kafka_url
         self.video_details_kafka_topic = config.video_details_kafka_topic
-        self.detections = {}  # Dictionary to store detections for each sourceId
         self.shared_path = config.shared_path
-        self.client = pymongo.MongoClient("mongodb://Eizen:Eizen123@183.82.116.237:27017/")  # Connect to MongoDB
-        self.db = self.client["testing"]  # Use or create a database
-        self.collection = self.db["detections"]
+        self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
+        self.db = self.client[config.stateless_db]  # Use or create a database
+        self.collection = self.db[config.stateless_collection_detections]
         self.task_manager = TaskManager(steps=self.steps)
     
     def store_detection(self, sourceId, task, sessionId):
@@ -85,7 +94,7 @@ class Detections:
     def remove_detection(self, sourceId):
         """Remove detections from MongoDB."""
         self.collection.delete_one({"sourceId": sourceId})
-
+    
     def action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
 
@@ -105,7 +114,7 @@ class Detections:
             names = dic["names"]
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[i] for i in detected_class.cls]
-            print("things_present==================", things_present)
+            logger.debug(f"The Detections are {things_present}")
 
             # Draw bounding boxes on the image
             a = detection_output[0].boxes
@@ -113,37 +122,46 @@ class Detections:
             file_name = os.path.basename(file)
             path_to_save_frames = directory_operations.get_frames_path(sourceId)
             path_to_save_frames = path_to_save_frames + file_name
-            print(path_to_save_frames)
             try:
-                cv2_operations().draw_bounding_boxes(file, xyxy, things_present, path_to_save_frames)
-                logging.info("Bounding Boxes done")
+                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, path_to_save_frames)
+                _, buffer = cv2.imencode(".jpg", image)
+                frame_bytes = base64.b64encode(buffer).decode("utf-8")
+                logger.debug("Finished drawing bounding boxes")
             except Exception as e:
-                logging.error(f"Error in CV2 Operations {e}")
+                logger.error(f"Error in CV2 Operations: {e}")
                 return e
+            try:
+                os.remove(file)
+                logger.debug(f"Image at {file} deleted successfully.")
+            except FileNotFoundError:
+                logger.error(f"Image at {file} not found.")
+            except Exception as e:
+                logger.error(f"An error occurred: {e}")
+
 
             # Connect to Kafka producer and send message
             try:
                 producer = KafkaProducer(bootstrap_servers=self.kafka_url)
             except Exception as e:
-                logging.error(f"Error in connecting to Kafka instance: {e}")
+                logger.error(f"Error in connecting to Kafka instance: {e}")
                 return e
-            message = {"sessionId": sessionId, "videoUrl": self.shared_path + sourceId + "/" + "frames/" + file_name, "manualId": manualId}
+            message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
             try:
                 producer.send(self.video_details_kafka_topic, value=json.dumps(message).encode("utf-8"))
             except Exception as e:
-                logging.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic}: {e}")
+                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic}: {e}")
                 return e
 
             # Assign task based on detections
             task = self.assign_task(things_present, sourceId, sessionId)
             if task is not None:
-                print("===========task", task)
+                logger.debug(f"The task number is: {task}")
                 response = self.task_manager.get_next_step(sessionId, sourceId, task, manualId)
-                logging.info(f"Response from graph: {response}")
+                logger.debug(f"Response from graph: {response}")
                 return things_present, response
             return things_present
         except Exception as e:
-            logging.error(f"Error occurred: {e}")
+            logger.error(f"Error occurred: {e}")
             return e
 
     def assign_task(self, things_present, sourceId, sessionId):
@@ -160,14 +178,14 @@ class Detections:
             # Retrieve detections from MongoDB
             saved_detections = self.get_detection(sourceId)
             if saved_detections:
-                print("Retrieved detections from MongoDB:", saved_detections)
+                logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
 
-            if len(saved_detections) == 3 and len(set(saved_detections)) == 1:
+            if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
                 return task
             elif len(set(saved_detections)) > 1:
                 self.remove_detection(sourceId)
                 return None
 
         except Exception as e:
-            logging.error(f"Error occurred: {e}")
+            logger.error(f"Error occurred: {e}")
             return e

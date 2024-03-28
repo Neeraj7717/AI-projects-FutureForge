@@ -28,7 +28,7 @@ class cv2_operations:
                 thickness,
             )
 
-        cv2.imwrite(output_path, image)
+        return image
 
     @staticmethod
     def crop_and_save_image(image_path, bbox, save_path):

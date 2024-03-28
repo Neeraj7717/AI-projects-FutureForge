@@ -23,15 +23,15 @@ class Input(BaseModel):
     manualId: Optional[str] = None
 
 @app.post("/detect")
-async def detect_hand(input_data: Input):
+async def detect(input_data: Input):
     """
-    Endpoint for performing hand detection.
+    Endpoint for performing detections.
 
     Args:
         input_data (Input): Input data containing file path, sourceId, sessionId, and manualId.
 
     Returns:
-        dict: Dictionary containing the output of hand detection.
+        dict: Dictionary containing the output of detection.
     """
     # Extract input data
     a=datetime.datetime.now()
@@ -42,9 +42,8 @@ async def detect_hand(input_data: Input):
     
     # Perform hand detection
     asyncio.create_task(detector_action_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
-    print((datetime.datetime.now() - a).total_seconds() * 1000,"<---------------")
 
-    return {"output": []}
+    # return {"output": []}
 
 async def detector_action_detector(file, sourceId, sessionId, manualId):
     """

@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     collection_name : str
     root_path : str
     shared_path : str
+    mongo_connection_string_stateless : str
+    stateless_db : str
+    stateless_collection_detections : str
+    stateless_collection_state : str
+    continuity : int
+    log_level : str
     
     class Config:
         env_file = "./.env"
