@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import subprocess
+import numpy as np
 import pymongo
 from kafka import KafkaProducer
 from ultralytics import YOLO
@@ -109,7 +110,11 @@ class Detections:
         """
         try:
             # Perform object detection
-            detection_output = self.model.predict(source=file, conf=0.25, save=False)
+            image_bytes = base64.b64decode(file)
+            frame_np = np.frombuffer(image_bytes, dtype=np.uint8)
+            # Decode the numpy array to an image
+            file = cv2.imdecode(frame_np, cv2.IMREAD_COLOR)
+            detection_output = self.model.predict(source=file, conf=0.25, save=False)   
             dic = vars(detection_output[0])
             names = dic["names"]
             detected_class = dic["boxes"].cpu().numpy()
@@ -119,11 +124,14 @@ class Detections:
             # Draw bounding boxes on the image
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
-            file_name = os.path.basename(file)
-            path_to_save_frames = directory_operations.get_frames_path(sourceId)
-            path_to_save_frames = path_to_save_frames + file_name
+            # file_name = os.path.basename(file)
+            
+            # path_to_save_frames = directory_operations.get_frames_path(sourceId)
+            # path_to_save_frames = path_to_save_frames + file_name
             try:
-                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, path_to_save_frames)
+                print(xyxy, things_present)
+                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
+                print(xyxy, things_present,"--------------------")
                 _, buffer = cv2.imencode(".jpg", image)
                 frame_bytes = base64.b64encode(buffer).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")

@@ -7,7 +7,8 @@ from PIL import Image
 class cv2_operations:
     @staticmethod
     def draw_bounding_boxes(image_path, bounding_boxes, classes, output_path):
-        image = cv2.imread(image_path)
+        # image = cv2.imread(image_path)
+        image=image_path
 
         for i in range(len(classes)):
             x, y, w, h = bounding_boxes[i]
@@ -27,7 +28,7 @@ class cv2_operations:
                 color,
                 thickness,
             )
-
+        cv2.imwrite("1.jpg", image)
         return image
 
     @staticmethod
