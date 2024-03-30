@@ -28,7 +28,6 @@ class cv2_operations:
                 color,
                 thickness,
             )
-        cv2.imwrite("1.jpg", image)
         return image
 
     @staticmethod
