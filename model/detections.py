@@ -118,34 +118,21 @@ class Detections:
             dic = vars(detection_output[0])
             names = dic["names"]
             detected_class = dic["boxes"].cpu().numpy()
-            things_present = [names[i] for i in detected_class.cls]
+            things_present = [names[name] for name in detected_class.cls]
             logger.debug(f"The Detections are {things_present}")
 
             # Draw bounding boxes on the image
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
-            # file_name = os.path.basename(file)
-            
-            # path_to_save_frames = directory_operations.get_frames_path(sourceId)
-            # path_to_save_frames = path_to_save_frames + file_name
+
             try:
-                print(xyxy, things_present)
-                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
-                print(xyxy, things_present,"--------------------")
+                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, None)
                 _, buffer = cv2.imencode(".jpg", image)
                 frame_bytes = base64.b64encode(buffer).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")
             except Exception as e:
                 logger.error(f"Error in CV2 Operations: {e}")
                 return e
-            try:
-                os.remove(file)
-                logger.debug(f"Image at {file} deleted successfully.")
-            except FileNotFoundError:
-                logger.error(f"Image at {file} not found.")
-            except Exception as e:
-                logger.error(f"An error occurred: {e}")
-
 
             # Connect to Kafka producer and send message
             try:
