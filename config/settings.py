@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     stateless_collection_state : str
     continuity : int
     log_level : str
+    signaling_server_url: str
     
     class Config:
         env_file = "./.env"

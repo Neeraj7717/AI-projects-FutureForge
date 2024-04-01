@@ -111,9 +111,9 @@ class Detections:
         try:
             # Perform object detection
             image_bytes = base64.b64decode(file)
-            frame_np = np.frombuffer(image_bytes, dtype=np.uint8)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
             # Decode the numpy array to an image
-            file = cv2.imdecode(frame_np, cv2.IMREAD_COLOR)
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
             detection_output = self.model.predict(source=file, conf=0.25, save=False)   
             dic = vars(detection_output[0])
             names = dic["names"]
@@ -126,7 +126,13 @@ class Detections:
             xyxy = a.xyxy.cpu().numpy()
 
             try:
-                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, None)
+                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
+                height, width = image.shape[:2]
+
+                # Calculate the new dimensions (half of original)
+                new_width = width // 2
+                new_height = height // 2
+                image=cv2.resize(image,(new_width,new_height))
                 _, buffer = cv2.imencode(".jpg", image)
                 frame_bytes = base64.b64encode(buffer).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")
