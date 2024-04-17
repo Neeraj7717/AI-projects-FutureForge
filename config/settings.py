@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     continuity : int
     log_level : str
     signaling_server_url: str
+    llava_endpoint: str
     
     class Config:
         env_file = "./.env"

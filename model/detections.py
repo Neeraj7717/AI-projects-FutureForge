@@ -4,14 +4,16 @@ import json
 import logging
 import subprocess
 import numpy as np
+import requests
 import pymongo
 from kafka import KafkaProducer
 from ultralytics import YOLO
 from utils.cv2Operations import cv2_operations
-# from instruction.instructions import complete_task
 from config.settings import Settings
 from utils.directoryOperations import directory_operations
-from instruction.instructions import TaskManager
+from instruction.instructions_graph import TaskManager
+from utils.api_client import APIClient
+from instruction.instructions_llava import LlavaInference
 import cv2
 
 # Load configurations from settings
@@ -27,13 +29,18 @@ logger = logging.getLogger()
 console_handler = logging.StreamHandler()
 logger.addHandler(console_handler)
 
+# map = {
+#     1 : ["case", "mobile"],
+#     2 : ["case"],
+#     3 : ["case", "charger"],
+#     4 : ["flash"],
+#     0 : []
+# }
 map = {
-    1 : ["case", "mobile"],
-    2 : ["case"],
-    3 : ["case", "charger"],
-    4 : ["flash"],
-    0 : []
+    1 : ["paper"]
 }
+
+isYOLO = False
 
 class Detections:
     """Class for performing object detection and assigning tasks based on detections."""
@@ -57,6 +64,8 @@ class Detections:
         self.db = self.client[config.stateless_db]  # Use or create a database
         self.collection = self.db[config.stateless_collection_detections]
         self.task_manager = TaskManager(steps=self.steps)
+        self.llava = LlavaInference(steps=self.steps)
+        self.api_client = APIClient(config.llava_endpoint)
     
     def store_detection(self, sourceId, task, sessionId):
         """Store or update detections in MongoDB."""
@@ -96,7 +105,7 @@ class Detections:
         """Remove detections from MongoDB."""
         self.collection.delete_one({"sourceId": sourceId})
     
-    def action_detector(self, file, sourceId, sessionId, manualId):
+    def action_detector(self, file, sourceId, sessionId, manualId, onlyYOLO):
         """Perform object detection on the provided image file.
 
         Args:
@@ -155,12 +164,17 @@ class Detections:
 
             # Assign task based on detections
             task = self.assign_task(things_present, sourceId, sessionId)
-            if task is not None:
-                logger.debug(f"The task number is: {task}")
-                response = self.task_manager.get_next_step(sessionId, sourceId, task, manualId)
-                logger.debug(f"Response from graph: {response}")
-                return things_present, response
-            return things_present
+            if isYOLO:
+                if task is not None:
+                    logger.debug(f"The task number is: {task}")
+                    response = self.task_manager.get_next_step(sessionId, sourceId, task, manualId)
+                    logger.debug(f"Response from graph: {response}")
+                    return things_present, response
+                return things_present
+            else:
+                response = self.llava.verify(sessionId=sessionId, sourceId=sourceId, task=task, manualId=manualId)
+                return things_present
+                
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
