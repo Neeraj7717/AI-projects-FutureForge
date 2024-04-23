@@ -6,16 +6,12 @@ from model.detections import Detections
 import uvicorn
 from pydantic import BaseModel
 from typing import Optional
-from config.settings import Settings
 
 # Create FastAPI app instance
 app = FastAPI()
 
 # Initialize detection model
 detector = Detections()
-
-# Load configurations from settings
-config = Settings()
 
 class Input(BaseModel):
     """
@@ -74,4 +70,4 @@ if __name__ == "__main__":
         help="Port number to run the server on (default: 8078)",
     )
     args = parser.parse_args()
-    uvicorn.run(app, host="0.0.0.0", port=int(config.port_number))
+    uvicorn.run(app, host="0.0.0.0", port=args.port)

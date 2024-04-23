@@ -74,4 +74,4 @@ if __name__ == "__main__":
         help="Port number to run the server on (default: 8078)",
     )
     args = parser.parse_args()
-    uvicorn.run(app, host="0.0.0.0", port=int(config.port_number))
+    uvicorn.run(app, host="0.0.0.0", port=config.port_number)

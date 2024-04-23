@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     log_level : str
     llava_endpoint: str
     insights_collection: str
-    port_number: str
     
     class Config:
         env_file = "./.env"
