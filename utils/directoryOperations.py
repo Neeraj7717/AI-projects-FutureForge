@@ -3,7 +3,7 @@ import os
 import shutil
 
 import yaml
-from config import settings
+from Config import settings
 
 
 class directory_operations:

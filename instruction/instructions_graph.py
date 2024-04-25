@@ -3,7 +3,7 @@ from pymongo.collection import ReturnDocument
 from instruction.instructions_llava import LlavaInference
 from utils.mongo_operations import MongoDBConnector
 from kafka import KafkaProducer
-from config.settings import Settings
+from Config.settings import Settings
 import json
 import logging
  

@@ -3,13 +3,14 @@ import os
 import json
 import logging
 import subprocess
+import zlib
 import numpy as np
 import requests
 import pymongo
 from kafka import KafkaProducer
 from ultralytics import YOLO
 from utils.cv2Operations import cv2_operations
-from config.settings import Settings
+from Config.settings import Settings
 from utils.directoryOperations import directory_operations
 from instruction.instructions_graph import TaskManager
 from utils.api_client import APIClient
@@ -145,8 +146,8 @@ class Detections:
                 new_width = width // 2
                 new_height = height // 2
                 image=cv2.resize(image,(new_width,new_height))
-                _, buffer = cv2.imencode(".jpg", image)
-                frame_bytes = base64.b64encode(buffer).decode("utf-8")
+                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")
             except Exception as e:
                 logger.error(f"Error in CV2 Operations: {e}")
@@ -160,9 +161,9 @@ class Detections:
                 return e
             message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
             try:
-                producer.send(self.video_details_kafka_topic, value=json.dumps(message).encode("utf-8"))
+                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
             except Exception as e:
-                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic}: {e}")
+                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
                 return e
  
             # Assign task based on detections

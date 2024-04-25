@@ -6,7 +6,7 @@ from model.detections import Detections
 import uvicorn
 from pydantic import BaseModel
 from typing import Optional
-from config.settings import Settings
+from Config.settings import Settings
 
 # Create FastAPI app instance
 app = FastAPI()

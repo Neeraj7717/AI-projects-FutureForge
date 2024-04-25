@@ -1,5 +1,5 @@
 import json
-from config.settings import Settings
+from Config.settings import Settings
 import logging
 from utils.mongo_operations import MongoDBConnector
 from kafka import KafkaProducer

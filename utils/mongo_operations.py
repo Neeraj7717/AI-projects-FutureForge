@@ -1,6 +1,6 @@
 import datetime
 import pymongo
-from config.settings import Settings
+from Config.settings import Settings
 from pymongo.errors import PyMongoError
 
 
