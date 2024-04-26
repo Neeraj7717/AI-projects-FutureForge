@@ -31,10 +31,12 @@ function negotiate() {
         var offer = pc.localDescription;
         var sesId=document.getElementById("sessionId");
         var srcId=document.getElementById("sourceId");
+        var feature=document.getElementById("feature")
         return fetch('/offer', {
             body: JSON.stringify({
                 sessionId: sesId.value,
                 sourceId: srcId.value,
+                feature: feature.value,
                 sdp: offer.sdp,
                 type: offer.type,
             }),
