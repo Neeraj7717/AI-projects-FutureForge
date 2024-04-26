@@ -24,9 +24,9 @@ ROOT = os.path.dirname(__file__)
 
 relay = None
 webcam = None
-from Config import get_env
+from Config import settings
 
-config=get_env.Settings()
+config=settings.Settings()
 
 
 def channel_log(channel, t, message):

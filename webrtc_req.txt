@@ -26,3 +26,4 @@ pyOpenSSL==24.1.0
 python-dotenv==1.0.1
 typing_extensions==4.10.0
 yarl==1.9.4
+opencv-python
