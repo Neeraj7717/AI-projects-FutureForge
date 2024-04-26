@@ -24,9 +24,9 @@ ROOT = os.path.dirname(__file__)
 
 relay = None
 webcam = None
-from Config import settings
+from Config import get_env
 
-config=settings.Settings()
+config=get_env.Settings()
 
 
 def channel_log(channel, t, message):
@@ -108,6 +108,7 @@ class KafkaImageStreamTrack(VideoStreamTrack):
             frame = av.VideoFrame.from_ndarray(file, format='rgb24')
             frame.pts = pts
             frame.time_base = time_base
+            await asyncio.sleep(0)
             return frame
 
 async def offer(request):
@@ -115,8 +116,14 @@ async def offer(request):
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
     kafka_topic=params["sessionId"]
     kafka_topic1=params["sourceId"]
-    consumer = KafkaConsumer(config.video_details_kafka_topic+kafka_topic, bootstrap_servers=config.kafka_url, auto_offset_reset='latest', api_version=(2, 5, 0),group_id=config.video_details_kafka_topic+kafka_topic)
-
+    feature = params.get("feature")
+    
+    if feature == "via":
+        consumer = KafkaConsumer(config.video_details_kafka_topic+kafka_topic, bootstrap_servers=config.kafka_url, auto_offset_reset='latest', api_version=(2, 5, 0),group_id=config.video_details_kafka_topic+kafka_topic)
+    else:
+        consumer = KafkaConsumer("webrtc"+kafka_topic1, bootstrap_servers=config.kafka_url, auto_offset_reset='latest', api_version=(2, 5, 0),group_id="webrtc"+kafka_topic)
+        
+        
     pc = RTCPeerConnection()
     pcs.add(pc)
     
