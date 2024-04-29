@@ -162,7 +162,7 @@ class TaskManager:
         elif task == 0 or task != current_step:
             if not self.model:
                 for step in manual["steps"]:
-                    if step["_id"]==current_step:
+                    if step["id"]==current_step:
                         step_details=step
                         break
                 # step_details = manual["steps"][current_step - 1]
