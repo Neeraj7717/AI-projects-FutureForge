@@ -1,0 +1,44 @@
+detections:
+  2:
+    steps:
+      - id: 7
+        items:
+          - case
+          - mobile
+      - id: 8
+        items:
+          - case
+      - id: 9
+        items:
+          - case
+          - charger
+      - id: 10
+        items:
+          - flash
+      - id: 0
+        items: []
+  1:
+    steps:
+      - id: 1
+        items:
+          - case
+          - mobile
+      - id: 2
+        items:
+          - case
+      - id: 3
+        items:
+          - case
+          - charger
+      - id: 4
+        items:
+          - flash
+      - id: 0
+        items: []
+  0:
+    steps:
+      - id: 1
+        items:
+          - paper
+      - id: 0
+        items: []

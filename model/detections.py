@@ -7,6 +7,7 @@ import zlib
 import numpy as np
 import requests
 import pymongo
+import yaml
 from kafka import KafkaProducer
 from ultralytics import YOLO
 from utils.cv2Operations import cv2_operations
@@ -30,13 +31,13 @@ logger = logging.getLogger()
 console_handler = logging.StreamHandler()
 logger.addHandler(console_handler)
  
-map = {
-    1 : ["case", "mobile"],
-    2 : ["case"],
-    3 : ["case", "charger"],
-    4 : ["flash"],
-    0 : []
-}
+# map = {
+#     7 : ["case", "mobile"],
+#     8 : ["case"],
+#     9 : ["case", "charger"],
+#     10 : ["flash"],
+#     11 : []
+# }
 # map = {
 #     1 : ["paper"],
 #     0 : []
@@ -47,17 +48,19 @@ class Detections:
  
     def __init__(self):
         """Initialize object detection model and other necessary parameters."""
-        self.steps = {
-            1: "Pick up the phone and its cases.",
-            2: "Assemble the Case to phone.",
-            3: "Take the charger in your hand and connect it to phone.",
-            4: "Turn on the flashlight on your phone.",
-            5: "Turn off the flashlight and put your phone down"
-        }
+        # self.steps = {
+        #     1: "Pick up the phone and its cases.",
+        #     2: "Assemble the Case to phone.",
+        #     3: "Take the charger in your hand and connect it to phone.",
+        #     4: "Turn on the flashlight on your phone.",
+        #     5: "Turn off the flashlight and put your phone down"
+        # }
         # self.steps = {
         #     1: "Please write an equation showing the formation of Water.",
         #     2: "Please write an equation showing the formation of Hydrochloric Acid."
         # }
+        with open('./Config/viaconfig.yaml', 'r') as file:
+            self.data = yaml.safe_load(file)
         self.model_path = config.path_of_model
         self.model = YOLO(self.model_path, "v8")
         self.frames_path = config.frames_path
@@ -65,10 +68,11 @@ class Detections:
         self.video_details_kafka_topic = config.video_details_kafka_topic
         self.shared_path = config.shared_path
         self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
+        self.db1 = self.client["analytics"]
         self.db = self.client[config.stateless_db]  # Use or create a database
         self.collection = self.db[config.stateless_collection_detections]
-        self.task_manager = TaskManager(steps=self.steps)
-        self.llava = LlavaInference(steps=self.steps)
+        self.monualCollection=self.db1["manual"]
+        # self.llava = LlavaInference(steps=self.steps)
         self.api_client = APIClient(config.llava_endpoint)
     
     def store_detection(self, sourceId, task, sessionId):
@@ -167,10 +171,15 @@ class Detections:
                 return e
  
             # Assign task based on detections
-            task = self.assign_task(things_present, sourceId, sessionId)
+            task = self.assign_task(things_present, sourceId, sessionId,manualId)
             if task is not None:
-                logger.debug(f"The task number is: {task}")
-                response = self.task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes)
+
+                document = self.monualCollection.find_one({"_id": int(manualId)})
+                steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                task_manager = TaskManager(steps=steps)                
+                logger.debug(f"The task number is: {task}") 
+                print(sessionId, sourceId, task, manualId)    
+                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes)
                 logger.debug(f"Response from graph: {response}")
                 return things_present, response
             return things_present
@@ -179,13 +188,28 @@ class Detections:
             logger.error(f"Error occurred: {e}")
             return e
  
-    def assign_task(self, things_present, sourceId, sessionId):
+    def assign_task(self, things_present, sourceId, sessionId,manualId):
         """Perform object detection on the provided image file."""
         try:
+
+            # Load the YAML data from the file
+            
+
+            # Define a function to create the mapping for a given source ID
+            def create_mapping(source_id):
+                mapping = {}
+                if int(source_id) in self.data['detections']:
+                    for step in self.data['detections'][int(source_id)]['steps']:
+                        mapping[step['id']] = step['items']
+                return mapping
+
+            # Example usage:
+              # Change this to the desired source ID
+            map = create_mapping(manualId)
+
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
             # Converting the filter object to a list and getting the first item
             task = next(matching_keys, None)
- 
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
  

@@ -29,10 +29,11 @@ class TaskGraph:
  
     def build_graph(self, steps):
         graph = {}
-        for i in range(1, len(steps) + 1):
-            graph[i] = i + 1 if i < len(steps) else None
+        for i in list(steps.keys()):
+            graph[i] = i + 1 if i < list(steps.keys())[-1] else None
         return graph
- 
+    def get_graph(self):
+        return self.graph
     def get_next(self, current_step):
         return self.graph.get(current_step)
  
@@ -50,20 +51,21 @@ class TaskManager:
  
     def get_current_step(self, sessionId, sourceId):
         document = self.collection.find_one({"sessionId": sessionId, "sourceId": sourceId})
+        start_step=list(self.task_graph.get_graph().keys())[0]
         if document:
             # Check if 'current_step' field exists; if not, add it with a value of 1
             if 'current_step' not in document:
                 self.collection.update_one(
                     {"_id": document["_id"]},
-                    {"$set": {"current_step": 1}}
+                    {"$set": {"current_step": start_step}}
                 )
-                return 1
+                return start_step
             else:
                 return document['current_step']
         else:
             # This condition might not be needed anymore, but kept for safety
-            self.collection.insert_one({"sessionId": sessionId, "sourceId": sourceId, "current_step": 1})
-            return 1
+            self.collection.insert_one({"sessionId": sessionId, "sourceId": sourceId, "current_step": start_step})
+            return start_step
  
     def update_step(self, sessionId, step):
         # Updates the current_step. Assumes document exists, but handles the case where current_step might not.
@@ -81,7 +83,6 @@ class TaskManager:
         total_steps = len(self.steps)
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
- 
         if current_step == total_steps and task == 0:
             if not self.model:
                 self.reset_step(sessionId)
@@ -137,6 +138,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                     }
+
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
                     message = {
                         "stepId": str(step_details["id"]),
@@ -159,7 +161,11 @@ class TaskManager:
                     
         elif task == 0 or task != current_step:
             if not self.model:
-                step_details = manual["steps"][current_step - 1]
+                for step in manual["steps"]:
+                    if step["_id"]==current_step:
+                        step_details=step
+                        break
+                # step_details = manual["steps"][current_step - 1]
                 # self.mongodb.add_end_time(sessionId, next_step)
                 logger.debug(step_details["text"])
                 message = {
@@ -192,6 +198,7 @@ class TaskManager:
                     "feedbackUrl": ""
                 }
                 try:
+
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
                 except Exception as e:
                     return e
@@ -227,6 +234,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                     }
+
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
                     self.producer.send(
                         video_instruction_kafka_topic,
@@ -267,6 +275,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                     }
+
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
                     self.producer.send(
                         video_instruction_kafka_topic,
@@ -309,6 +318,7 @@ class TaskManager:
                             "videoUrl": step_details["url"],
                             "feedbackUrl": ""
                         }
+
                         self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
                         self.producer.send(
                             video_instruction_kafka_topic,

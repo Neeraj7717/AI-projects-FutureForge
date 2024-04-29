@@ -40,6 +40,7 @@ class MongoDBConnector:
         return document
 
     def insert_or_update_data(self, session_id, steps, total_steps):
+        print("=======================================================================================================",session_id)
         try:
             # Check if session_id exists
             existing_data = self.collection_insight.find_one({"sessionId": session_id})
@@ -98,7 +99,6 @@ class MongoDBConnector:
                             if step["status"] != "completed":
                                 step["status"] = "completed"
                         break
-
                 # Update the document with the modified steps
                 self.collection_insight.replace_one({"_id": document["_id"]}, document)
             else:

@@ -1,4 +1,12 @@
 /.env
 /venv
 /1.jpg
-webrtc/test/
+./webrtc/test/
+./utils/__pycache__/api_client.cpython-310.pyc
+./utils/__pycache__/cv2Operations.cpython-310.pyc
+./utils/__pycache__/directoryOperations.cpython-310.pyc
+./utils/__pycache__/mongo_operations.cpython-310.pyc
+./Config/__pycache__/settings.cpython-310.pyc
+./instruction/__pycache__/instructions_graph.cpython-310.pyc
+./instruction/__pycache__/instructions_llava.cpython-310.pyc
+./model/__pycache__/detections.cpython-310.pyc
