@@ -105,7 +105,7 @@ class KafkaImageStreamTrack(VideoStreamTrack):
             file = cv2.imdecode(np.frombuffer(decompressed_frame, np.uint8), cv2.IMREAD_COLOR)
 
             pts, time_base = await self.next_timestamp()
-            frame = av.VideoFrame.from_ndarray(file, format='rgb24')
+            frame = av.VideoFrame.from_ndarray(file, format='bgr24')
             frame.pts = pts
             frame.time_base = time_base
             await asyncio.sleep(0)
