@@ -207,7 +207,10 @@ class TaskManager:
             else:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "Yes":
-                    step_details = manual["steps"][current_step - 1]
+                    for step in manual["steps"]:
+                        if step["id"]==current_step:
+                            step_details=step
+                            break
                     logger.debug(step_details["text"])
                     message = {
                         "stepId": str(step_details["id"]),
@@ -248,7 +251,10 @@ class TaskManager:
                 if next_step is not None:
                     self.update_step(sessionId, next_step)
                     self.mongodb.add_end_time(sessionId, current_step)
-                    step_details = manual["steps"][next_step - 1]
+                    for step in manual["steps"]:
+                        if step["id"]==next_step:
+                            step_details=step
+                            break
                     logger.debug(step_details["text"])
                     message = {
                         "stepId": str(step_details["id"]),
@@ -291,7 +297,10 @@ class TaskManager:
                     if next_step is not None:
                         self.update_step(sessionId, next_step)
                         self.mongodb.add_end_time(sessionId, current_step)
-                        step_details = manual["steps"][next_step - 1]
+                        for step in manual["steps"]:
+                            if step["id"]==next_step:
+                                step_details=step
+                                break
                         logger.debug(step_details["text"])
                         message = {
                             "stepId": str(step_details["id"]),
