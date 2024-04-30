@@ -83,6 +83,7 @@ class TaskManager:
         total_steps = len(self.steps)
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
+        print(current_step,manual["steps"][-2]["id"],task)
         if current_step == manual["steps"][-2]["id"] and task == 0:
             if not self.model:
                 self.update_step(sessionId,manual["steps"][0]["id"])
@@ -115,6 +116,7 @@ class TaskManager:
                     "feedbackUrl": ""
                 }
                 self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
+                self.mongodb.add_end_time(sessionId, step_details["id"])
                 self.producer.send(
                     video_instruction_kafka_topic,
                     value=json.dumps(message).encode("utf-8"),
