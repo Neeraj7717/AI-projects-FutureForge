@@ -40,7 +40,6 @@ class MongoDBConnector:
         return document
 
     def insert_or_update_data(self, session_id, steps, total_steps):
-        print("=======================================================================================================",session_id)
         try:
             # Check if session_id exists
             existing_data = self.collection_insight.find_one({"sessionId": session_id})

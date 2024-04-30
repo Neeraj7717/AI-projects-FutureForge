@@ -178,7 +178,6 @@ class Detections:
                 steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
                 task_manager = TaskManager(steps=steps)                
                 logger.debug(f"The task number is: {task}") 
-                print(sessionId, sourceId, task, manualId)    
                 response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes)
                 logger.debug(f"Response from graph: {response}")
                 return things_present, response
