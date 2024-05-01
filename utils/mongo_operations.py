@@ -67,7 +67,7 @@ class MongoDBConnector:
                     # Append new stepId to steps list
                     steps_with_time = dict(steps)
                     steps_with_time["startTime"] = datetime.datetime.now()  # Adding start_time
-                    message["startTime"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    message["startTime"]=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                     self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                     if int(steps["stepId"]) == total_steps + 1:
                         steps_with_time["status"] = "completed"
@@ -76,7 +76,7 @@ class MongoDBConnector:
                 # Insert new document
                 steps_with_time = dict(steps)
                 steps_with_time["startTime"] = datetime.datetime.now()  # Adding start_time
-                message["startTime"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                message["startTime"]=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                 self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 if int(steps["stepId"]) == total_steps + 1:
                     steps_with_time["status"] = "completed"
@@ -103,9 +103,9 @@ class MongoDBConnector:
                         # Check if endTime already exists, if not, set current time
                         if "endTime" not in step:
                             step["endTime"] = datetime.datetime.now()
-                            message["startTime"]=step["startTime"].strftime("%Y-%m-%d %H:%M:%S")
+                            message["startTime"]=step["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                             message["status"]="completed"
-                            message["endTime"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            message["endTime"]=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
