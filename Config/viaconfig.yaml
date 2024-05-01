@@ -3,8 +3,9 @@ detections:
     steps:
       - id: 7
         items:
-          - case
-          - mobile
+          # - case
+          # - mobile
+          - charger
       - id: 8
         items:
           - case

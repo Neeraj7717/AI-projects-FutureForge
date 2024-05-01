@@ -1,7 +1,9 @@
 import datetime
+import json
 import pymongo
 from Config.settings import Settings
 from pymongo.errors import PyMongoError
+from kafka import KafkaProducer
 
 
 config = Settings()
@@ -18,6 +20,8 @@ class MongoDBConnector:
         self.client_insight = None
         self.db_insight = None
         self.collection_insight = None
+        self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
+        self.video_instruction_kafka_topic=config.video_instruction_kafka_topic
         self.connect()
         self.connect_insights()
 
@@ -39,7 +43,7 @@ class MongoDBConnector:
         document = self.collection.find_one({"_id": document_id})
         return document
 
-    def insert_or_update_data(self, session_id, steps, total_steps):
+    def insert_or_update_data(self, session_id, steps, total_steps,message):
         try:
             # Check if session_id exists
             existing_data = self.collection_insight.find_one({"sessionId": session_id})
@@ -63,6 +67,8 @@ class MongoDBConnector:
                     # Append new stepId to steps list
                     steps_with_time = dict(steps)
                     steps_with_time["startTime"] = datetime.datetime.now()  # Adding start_time
+                    message["startTime"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                     if int(steps["stepId"]) == total_steps + 1:
                         steps_with_time["status"] = "completed"
                     data_to_insert["steps"].append(steps_with_time)
@@ -70,8 +76,11 @@ class MongoDBConnector:
                 # Insert new document
                 steps_with_time = dict(steps)
                 steps_with_time["startTime"] = datetime.datetime.now()  # Adding start_time
+                message["startTime"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 if int(steps["stepId"]) == total_steps + 1:
                     steps_with_time["status"] = "completed"
+
                 data_to_insert["steps"].append(steps_with_time)
 
             # Update or insert the document
@@ -83,7 +92,7 @@ class MongoDBConnector:
 
         except PyMongoError as e:
             return f"An error occurred while inserting or updating data: {e}"
-    def add_end_time(self, session_id, step_id):
+    def add_end_time(self, session_id, step_id,message):
         try:
             step_id = str(step_id)
             # Find the document with the given sessionId and stepId
@@ -94,6 +103,10 @@ class MongoDBConnector:
                         # Check if endTime already exists, if not, set current time
                         if "endTime" not in step:
                             step["endTime"] = datetime.datetime.now()
+                            message["startTime"]=step["startTime"].strftime("%Y-%m-%d %H:%M:%S")
+                            message["status"]="completed"
+                            message["endTime"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
                                 step["status"] = "completed"

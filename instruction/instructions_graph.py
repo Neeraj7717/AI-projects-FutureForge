@@ -87,8 +87,11 @@ class TaskManager:
         if current_step == manual["steps"][-2]["id"] and task == 0:
             if not self.model:
                 self.update_step(sessionId,manual["steps"][0]["id"])
-                self.mongodb.add_end_time(sessionId, current_step)
-                step_details = manual["steps"][-1]
+
+                for step in manual["steps"]:
+                    if step["id"]==current_step:
+                        step_details=step
+                        break
                 logger.debug(step_details["text"])
                 message = {
                     "stepId": str(step_details["id"]),
@@ -98,6 +101,22 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "endTime": "",
+                    "repetition": "",
+                    "feedback": "",
+                    "feedbackUrl": "",
+                    "startTime": ""
+                    }
+                self.mongodb.add_end_time(sessionId, current_step,message)
+                step_details = manual["steps"][-1]
+                logger.debug(step_details["text"])
+                message = {
+                    "stepId": str(step_details["id"]),
+                    "sessionId": sessionId,
+                    "videoUrl": step_details["url"],
+                    "manualId": manualId,
+                    "step": step_details["text"],
+                    "status": "inProgress",
+                    "endTime": "",-
                     "repetition": "",
                     "feedback": "",
                     "feedbackUrl": "",
@@ -115,12 +134,12 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                 }
-                self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
-                self.mongodb.add_end_time(sessionId, step_details["id"])
-                self.producer.send(
-                    video_instruction_kafka_topic,
-                    value=json.dumps(message).encode("utf-8"),
-                )
+                self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                self.mongodb.add_end_time(sessionId, step_details["id"],message)
+                # self.producer.send(
+                #     video_instruction_kafka_topic,
+                #     value=json.dumps(message).encode("utf-8"),
+                # )
                 return self.steps[1]
             else:
                 response = self.llava.verify(frame_bytes=frame_bytes)
@@ -141,7 +160,6 @@ class TaskManager:
                     "feedbackUrl": ""
                     }
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
                     message = {
                         "stepId": str(step_details["id"]),
                         "sessionId": sessionId,
@@ -155,10 +173,11 @@ class TaskManager:
                         "feedbackUrl": "",
                         "startTime": ""
                     }
-                    self.producer.send(
-                        video_instruction_kafka_topic,
-                        value=json.dumps(message).encode("utf-8"),
-                    )
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.producer.send(
+                    #     video_instruction_kafka_topic,
+                    #     value=json.dumps(message).encode("utf-8"),
+                    # )
                     return self.steps[1]
                     
         elif task == 0 or task != current_step:
@@ -183,10 +202,10 @@ class TaskManager:
                     "feedbackUrl": "",
                     "startTime": ""
                 }
-                self.producer.send(
-                    video_instruction_kafka_topic,
-                    value=json.dumps(message).encode("utf-8"),
-                )
+                # self.producer.send(
+                #     video_instruction_kafka_topic,
+                #     value=json.dumps(message).encode("utf-8"),
+                # )
                 steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
@@ -201,7 +220,7 @@ class TaskManager:
                 }
                 try:
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                 except Exception as e:
                     return e
                 logger.debug(current_step)
@@ -240,11 +259,11 @@ class TaskManager:
                     "feedbackUrl": ""
                     }
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
-                    self.producer.send(
-                        video_instruction_kafka_topic,
-                        value=json.dumps(message).encode("utf-8"),
-                    )
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.producer.send(
+                    #     video_instruction_kafka_topic,
+                    #     value=json.dumps(message).encode("utf-8"),
+                    # )
                     logger.debug(current_step)
                     return self.steps[current_step]
         elif task == current_step:
@@ -252,7 +271,25 @@ class TaskManager:
             if not self.model:
                 if next_step is not None:
                     self.update_step(sessionId, next_step)
-                    self.mongodb.add_end_time(sessionId, current_step)
+                    for step in manual["steps"]:
+                        if step["id"]==current_step:
+                            step_details=step
+                            break
+                    logger.debug(step_details["text"])
+                    message = {
+                        "stepId": str(step_details["id"]),
+                        "sessionId": sessionId,
+                        "videoUrl": step_details["url"],
+                        "manualId": manualId,
+                        "step": step_details["text"],
+                        "status": "inProgress",
+                        "endTime": "",
+                        "repetition": "",
+                        "feedback": "",
+                        "feedbackUrl": "",
+                        "startTime": ""
+                        }
+                    self.mongodb.add_end_time(sessionId, current_step,message)
                     for step in manual["steps"]:
                         if step["id"]==next_step:
                             step_details=step
@@ -284,11 +321,11 @@ class TaskManager:
                     "feedbackUrl": ""
                     }
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
-                    self.producer.send(
-                        video_instruction_kafka_topic,
-                        value=json.dumps(message).encode("utf-8"),
-                    )
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.producer.send(
+                    #     video_instruction_kafka_topic,
+                    #     value=json.dumps(message).encode("utf-8"),
+                    # )
                     logger.debug(next_step)
                     return self.steps.get(next_step, "Please perform the next step.")
                 else:
@@ -298,7 +335,41 @@ class TaskManager:
                 if response == "yes" or response == "Yes":
                     if next_step is not None:
                         self.update_step(sessionId, next_step)
-                        self.mongodb.add_end_time(sessionId, current_step)
+                        for step in manual["steps"]:
+                            if step["id"]==current_step:
+                                step_details=step
+                                break
+                        message = {
+                            "stepId": str(step_details["id"]),
+                            "sessionId": sessionId,
+                            "videoUrl": step_details["url"],
+                            "manualId": manualId,
+                            "step": step_details["text"],
+                            "status": "inProgress",
+                            "endTime": "",
+                            "repetition": "",
+                            "feedback": "",
+                            "feedbackUrl": "",
+                            "startTime": ""
+                        }
+                        self.mongodb.add_end_time(sessionId, current_step,message)
+                        for step in manual["steps"]:
+                            if step["id"]==current_step:
+                                step_details=step
+                                break
+                        message = {
+                            "stepId": str(step_details["id"]),
+                            "sessionId": sessionId,
+                            "videoUrl": step_details["url"],
+                            "manualId": manualId,
+                            "step": step_details["text"],
+                            "status": "inProgress",
+                            "endTime": "",
+                            "repetition": "",
+                            "feedback": "",
+                            "feedbackUrl": "",
+                            "startTime": ""
+                        }
                         for step in manual["steps"]:
                             if step["id"]==next_step:
                                 step_details=step
@@ -330,11 +401,11 @@ class TaskManager:
                             "feedbackUrl": ""
                         }
 
-                        self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps)
-                        self.producer.send(
-                            video_instruction_kafka_topic,
-                            value=json.dumps(message).encode("utf-8"),
-                        )
+                        self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                        # self.producer.send(
+                        #     video_instruction_kafka_topic,
+                        #     value=json.dumps(message).encode("utf-8"),
+                        # )
                         logger.debug(next_step)
                         return self.steps.get(next_step, "Please perform the next step.")
                     else:
