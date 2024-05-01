@@ -108,7 +108,6 @@ class TaskManager:
                     }
                 self.mongodb.add_end_time(sessionId, current_step,message)
                 step_details = manual["steps"][-1]
-                logger.debug(step_details["text"])
                 message = {
                     "stepId": str(step_details["id"]),
                     "sessionId": sessionId,
@@ -116,7 +115,7 @@ class TaskManager:
                     "manualId": manualId,
                     "step": step_details["text"],
                     "status": "inProgress",
-                    "endTime": "",-
+                    "endTime": "",
                     "repetition": "",
                     "feedback": "",
                     "feedbackUrl": "",
