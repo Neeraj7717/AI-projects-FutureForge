@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     kafka_url : str
     path_of_model : str
     frames_path : str
+    path_of_ekyc_model : str
     video_details_kafka_topic : str
     video_instruction_kafka_topic : str
     mongo_connection_string_manual : str

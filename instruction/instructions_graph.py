@@ -84,7 +84,7 @@ class TaskManager:
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
         print(current_step,manual["steps"][-2]["id"],task)
-        if current_step == manual["steps"][-2]["id"] and task == 0:
+        if current_step == manual["steps"][-2]["id"] and (task == 0 or task == current_step):
             if not self.model:
                 self.update_step(sessionId,manual["steps"][0]["id"])
 

@@ -1,4 +1,19 @@
 detections:
+
+  3:
+    steps:
+      - id: 13
+        items:
+          - case
+          - mobile
+      - id: 14
+        items:
+          - case
+      - id: 15
+        items:
+          - flash
+      - id: 0
+        items: []
   2:
     steps:
       - id: 7
@@ -43,4 +58,17 @@ detections:
         items:
           - paper
       - id: 0
+        items: []
+  4:
+    steps:
+      - id: 16
+        items:
+          - person
+      - id: 17
+        items:
+          - adhar
+      - id: 18
+        items:
+          - pan card
+      - id: 19
         items: []

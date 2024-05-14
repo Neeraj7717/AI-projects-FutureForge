@@ -65,6 +65,7 @@ class Detections:
         self.model = YOLO(self.model_path, "v8")
         self.frames_path = config.frames_path
         self.kafka_url = config.kafka_url
+        self.ekycmodel=YOLO(config.path_of_ekyc_model, "v8")
         self.video_details_kafka_topic = config.video_details_kafka_topic
         self.shared_path = config.shared_path
         self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
@@ -72,6 +73,7 @@ class Detections:
         self.db = self.client[config.stateless_db]  # Use or create a database
         self.collection = self.db[config.stateless_collection_detections]
         self.monualCollection=self.db1["manual"]
+        self.sessionSteps=self.db1["sessionSteps"]
         # self.llava = LlavaInference(steps=self.steps)
         self.api_client = APIClient(config.llava_endpoint)
     
@@ -131,16 +133,28 @@ class Detections:
             file = np.frombuffer(image_bytes, dtype=np.uint8)
             # Decode the numpy array to an image
             file = cv2.imdecode(file, cv2.IMREAD_COLOR)
-            detection_output = self.model.predict(source=file, conf=0.25, save=False)   
-            dic = vars(detection_output[0])
-            names = dic["names"]
-            detected_class = dic["boxes"].cpu().numpy()
-            things_present = [names[name] for name in detected_class.cls]
-            logger.debug(f"The Detections are {things_present}")
-            
+            if manualId!=str(4):
+                detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+                dic = vars(detection_output[0])
+                names = dic["names"]
+                detected_class = dic["boxes"].cpu().numpy()
+                things_present = [names[name] for name in detected_class.cls]
+                logger.debug(f"The Detections are {things_present}")
+                a = detection_output[0].boxes
+                xyxy = a.xyxy.cpu().numpy()
+            else:
+                result=self.ekycmodel.predict(file)
+                names=result[0].names
+                things_present=[names[result[0].probs.top1]]    
+                height, width = file.shape[:2]
+ 
+                # Calculate the new dimensions (half of original)
+                new_width = width // 2
+                new_height = height // 2
+                image=cv2.resize(file,(new_width,new_height))
+                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
             # Draw bounding boxes on the image
-            a = detection_output[0].boxes
-            xyxy = a.xyxy.cpu().numpy()
  
             try:
                 image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
@@ -155,21 +169,21 @@ class Detections:
                 logger.debug("Finished drawing bounding boxes")
             except Exception as e:
                 logger.error(f"Error in CV2 Operations: {e}")
-                return e
- 
+                pass
+                
+            
             # Connect to Kafka producer and send message
             try:
                 producer = KafkaProducer(bootstrap_servers=self.kafka_url)
             except Exception as e:
                 logger.error(f"Error in connecting to Kafka instance: {e}")
-                return e
+                pass
             message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
             try:
                 producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
             except Exception as e:
                 logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-                return e
- 
+                pass
             # Assign task based on detections
             task = self.assign_task(things_present, sourceId, sessionId,manualId)
             if task is not None:
@@ -192,7 +206,9 @@ class Detections:
         try:
 
             # Load the YAML data from the file
-            
+            data=self.sessionSteps.find_one({"sessionId":sessionId})
+            if data==None:
+                return 0
 
             # Define a function to create the mapping for a given source ID
             def create_mapping(source_id):
@@ -209,6 +225,8 @@ class Detections:
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
             # Converting the filter object to a list and getting the first item
             task = next(matching_keys, None)
+            print(task)
+            print("============")
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
  
