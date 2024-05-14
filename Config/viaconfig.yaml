@@ -61,14 +61,14 @@ detections:
         items: []
   4:
     steps:
-      - id: 16
-        items:
-          - person
-      - id: 17
-        items:
-          - adhar
       - id: 18
         items:
-          - pan card
+          - person
       - id: 19
+        items:
+          - adhar
+      - id: 20
+        items:
+          - pan card
+      - id: 21
         items: []
