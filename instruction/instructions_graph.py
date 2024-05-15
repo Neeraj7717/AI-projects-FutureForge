@@ -1,5 +1,6 @@
 from pymongo import MongoClient
 from pymongo.collection import ReturnDocument
+import requests
 from instruction.instructions_llava import LlavaInference
 from utils.mongo_operations import MongoDBConnector
 from kafka import KafkaProducer
@@ -77,14 +78,15 @@ class TaskManager:
     def reset_step(self, sessionId):
         self.update_step(sessionId, 1)
  
-    def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes):
+    def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes,things_present,data):
         manual = self.mongodb.get_document_by_id(document_id=int(manualId))
         current_step = self.get_current_step(sessionId, sourceId)
         total_steps = len(self.steps)
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
         print(current_step,manual["steps"][-2]["id"],task)
-        if current_step == manual["steps"][-2]["id"] and (task == 0 or task == current_step):
+        if current_step == manual["steps"][-2]["id"] and (task == 0 or current_step==task):
+            print("c\no\nr\nr\ne\nc\nt")
             if not self.model:
                 self.update_step(sessionId,manual["steps"][0]["id"])
 
@@ -101,7 +103,10 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "endTime": "",
-                    "repetition": "",
+                    "audioUrl":"",
+                    "contextUrl": step_details["contextUrl"],
+                    "contextType":step_details["contextType"],
+                    "repetition": 0,
                     "feedback": "",
                     "feedbackUrl": "",
                     "startTime": ""
@@ -116,7 +121,10 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "endTime": "",
-                    "repetition": "",
+                    "audioUrl":"",
+                    "contextUrl": step_details["contextUrl"],
+                    "contextType":step_details["contextType"],
+                    "repetition": 0,
                     "feedback": "",
                     "feedbackUrl": "",
                     "startTime": ""
@@ -128,7 +136,7 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
-                    "repetition": "",
+                    "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
@@ -153,7 +161,7 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
-                    "repetition": "",
+                    "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
@@ -167,7 +175,10 @@ class TaskManager:
                         "step": step_details["text"],
                         "status": "inProgress",
                         "endTime": "",
-                        "repetition": "",
+                        "audioUrl":"",
+                        "contextUrl": step_details["contextUrl"],
+                        "contextType":step_details["contextType"],
+                        "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
                         "startTime": ""
@@ -185,6 +196,7 @@ class TaskManager:
                     if step["id"]==current_step:
                         step_details=step
                         break
+
                 # step_details = manual["steps"][current_step - 1]
                 # self.mongodb.add_end_time(sessionId, next_step)
                 logger.debug(step_details["text"])
@@ -196,11 +208,15 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "endTime": "",
-                    "repetition": "",
+                    "audioUrl":"",
+                    "contextUrl": step_details["contextUrl"],
+                    "contextType":step_details["contextType"],
+                    "repetition": 0,
                     "feedback": "",
                     "feedbackUrl": "",
                     "startTime": ""
                 }
+
                 # self.producer.send(
                 #     video_instruction_kafka_topic,
                 #     value=json.dumps(message).encode("utf-8"),
@@ -212,15 +228,43 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
-                    "repetition": "",
+                    "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                 }
                 try:
-
+                    def get_items(step_id, manual_id):
+                        for step in data["detections"].get(manual_id, {}).get("steps", []):
+                            if step["id"] == step_id:
+                                return step["items"]
+                        return []
+                    if task!=0:
+                        true_items=get_items(int(current_step),int(manualId))[:]
+                        if "Person" in true_items:
+                            true_items.remove("Person")
+                        if "Person" in things_present:
+                            things_present.remove("Person")
+                        text=step_details["text"]
+                        items=", ".join(item for item in set(things_present)) if things_present else "nothing"
+                        true_items=", ".join(true_item for true_item in true_items) if true_items else "nothing"
+                        
+                        
+                        
+                        Text = f"you are holding {items} but you have to hold {true_items} "
+                        
+                        if items=="nothing" and true_items=="nothing":
+                            Text= "Ensure you have good lighting conditions, Adjust your camera."
+                            
+                        print(f"\n\n{Text}\n\n")    
+                        response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 1})
+                        data = json.loads(response.content.decode("utf-8"))
+                        message["audioUrl"]= data["file_path"]
+                        message["step"]=Text
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+       
                 except Exception as e:
+                    print(e)
                     return e
                 logger.debug(current_step)
                 return self.steps[current_step]
@@ -240,7 +284,10 @@ class TaskManager:
                         "step": step_details["text"],
                         "status": "inProgress",
                         "endTime": "",
-                        "repetition": "",
+                        "audioUrl":"",
+                        "contextUrl": step_details["contextUrl"],
+                        "contextType":step_details["contextType"],
+                        "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
                         "startTime": ""
@@ -252,7 +299,7 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
-                    "repetition": "",
+                    "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
@@ -283,7 +330,10 @@ class TaskManager:
                         "step": step_details["text"],
                         "status": "inProgress",
                         "endTime": "",
-                        "repetition": "",
+                        "audioUrl":"",
+                        "contextUrl": step_details["contextUrl"],
+                        "contextType":step_details["contextType"],
+                        "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
                         "startTime": ""
@@ -302,7 +352,10 @@ class TaskManager:
                         "step": step_details["text"],
                         "status": "inProgress",
                         "endTime": "",
-                        "repetition": "",
+                        "audioUrl":"",
+                        "contextUrl": step_details["contextUrl"],
+                        "contextType":step_details["contextType"],
+                        "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
                         "startTime": ""
@@ -314,7 +367,7 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
-                    "repetition": "",
+                    "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
@@ -346,7 +399,10 @@ class TaskManager:
                             "step": step_details["text"],
                             "status": "inProgress",
                             "endTime": "",
-                            "repetition": "",
+                            "audioUrl":"",
+                            "contextUrl": step_details["contextUrl"],
+                            "contextType":step_details["contextType"],
+                            "repetition": 0,
                             "feedback": "",
                             "feedbackUrl": "",
                             "startTime": ""
@@ -364,7 +420,10 @@ class TaskManager:
                             "step": step_details["text"],
                             "status": "inProgress",
                             "endTime": "",
-                            "repetition": "",
+                            "audioUrl":"",
+                            "contextUrl": step_details["contextUrl"],
+                            "contextType":step_details["contextType"],
+                            "repetition": 0,
                             "feedback": "",
                             "feedbackUrl": "",
                             "startTime": ""
@@ -382,7 +441,10 @@ class TaskManager:
                             "step": step_details["text"],
                             "status": "inProgress",
                             "endTime": "",
-                            "repetition": "",
+                            "audioUrl":"",
+                            "contextUrl": step_details["contextUrl"],
+                            "contextType":step_details["contextType"],
+                            "repetition": 0,
                             "feedback": "",
                             "feedbackUrl": "",
                             "startTime": ""
@@ -394,7 +456,7 @@ class TaskManager:
                             "step": step_details["text"],
                             "status": "inProgress",
                             "duration": "",
-                            "repetition": "",
+                            "repetition": 0,
                             "feedback": "",
                             "videoUrl": step_details["url"],
                             "feedbackUrl": ""

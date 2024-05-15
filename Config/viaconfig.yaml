@@ -12,7 +12,7 @@ detections:
       - id: 15
         items:
           - flash
-      - id: 0
+      - id: 16
         items: []
   2:
     steps:
@@ -31,7 +31,7 @@ detections:
       - id: 10
         items:
           - flash
-      - id: 0
+      - id: 11
         items: []
   1:
     steps:
@@ -50,7 +50,7 @@ detections:
       - id: 4
         items:
           - flash
-      - id: 0
+      - id: 5
         items: []
   0:
     steps:
@@ -63,12 +63,23 @@ detections:
     steps:
       - id: 18
         items:
-          - person
+          - Person
       - id: 19
         items:
-          - adhar
+          - Aadhar_front
+          - Person
+
       - id: 20
         items:
-          - pan card
+          - Pan_front
+          - Person
       - id: 21
         items: []
+      - id: -1
+        items:
+          - Aadhar_back
+          - Person
+      - id: -2
+        items:
+          - Pan_back
+          - Person

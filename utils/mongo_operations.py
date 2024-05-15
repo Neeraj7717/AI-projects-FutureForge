@@ -54,16 +54,20 @@ class MongoDBConnector:
             # If session_id exists, update the steps data
             if existing_data:
                 data_to_insert = existing_data
-
+                
                 # Check if stepId already exists in the list of steps
                 for step in data_to_insert["steps"]:
                     if step["stepId"] == steps["stepId"]:
                         # Update other details if anything is altered
                         for key, value in steps.items():
-                            if key != "stepId" and key != "startTime" and key != "status":
+                            #print(key,value)
+                            if key != "stepId" and key != "startTime" and key != "status" and key != "repetition":
                                 step[key] = value
+                        #print(data_to_insert["steps"])
+                        #print("\n\n-------------------------------------")
                         break
                 else:
+                    
                     # Append new stepId to steps list
                     steps_with_time = dict(steps)
                     steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
@@ -73,22 +77,40 @@ class MongoDBConnector:
                         steps_with_time["status"] = "completed"
                     data_to_insert["steps"].append(steps_with_time)
             else:
+                
                 # Insert new document
                 steps_with_time = dict(steps)
                 steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
                 message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+                message["audioUrl"] = ""
+                
                 self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 if int(steps["stepId"]) == total_steps + 1:
                     steps_with_time["status"] = "completed"
 
                 data_to_insert["steps"].append(steps_with_time)
-
+            if message["audioUrl"]!= "":
+                steps_with_time = dict(steps)
+                message["videoUrl"]= ""
+                message["status"]="failed"
+                #print(data_to_insert["steps"])
+                #print("\n\n")
+                data_to_insert["steps"][-1]["repetition"]+=1
+                #print(data_to_insert["steps"][-1])
+                #print("\n\n")
+                
+                
+                message["repetition"]=data_to_insert["steps"][-1]["repetition"]
+                steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
+                message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+                self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
             # Update or insert the document
             self.collection_insight.update_one(
                 {"sessionId": session_id},
                 {"$set": data_to_insert},
                 upsert=True
             )
+            #print(data_to_insert)
 
         except PyMongoError as e:
             return f"An error occurred while inserting or updating data: {e}"

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     continuity : int
     log_level : str
     llava_endpoint: str
+    t2v_endpoint : str
     insights_collection: str
     port_number: str
     

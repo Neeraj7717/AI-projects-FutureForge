@@ -15,3 +15,6 @@ utils/__pycache__/api_client.cpython-310.pyc
 utils/__pycache__/cv2Operations.cpython-310.pyc
 utils/__pycache__/directoryOperations.cpython-310.pyc
 utils/__pycache__/mongo_operations.cpython-310.pyc
+instruction/__pycache__/
+model/__pycache__/
+Config/__pycache__/
