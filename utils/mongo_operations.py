@@ -72,6 +72,9 @@ class MongoDBConnector:
                     steps_with_time = dict(steps)
                     steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
                     message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+                    del message["audioUrl"]
+                    del message["contextUrl"]
+                    del message["contextType"]
                     self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                     if int(steps["stepId"]) == total_steps + 1:
                         steps_with_time["status"] = "completed"
@@ -83,7 +86,9 @@ class MongoDBConnector:
                 steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
                 message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                 message["audioUrl"] = ""
-                
+                del message["audioUrl"]
+                del message["contextUrl"]
+                del message["contextType"]
                 self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 if int(steps["stepId"]) == total_steps + 1:
                     steps_with_time["status"] = "completed"
@@ -103,6 +108,9 @@ class MongoDBConnector:
                 message["repetition"]=data_to_insert["steps"][-1]["repetition"]
                 steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
                 message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+                del message["audioUrl"]
+                del message["contextUrl"]
+                del message["contextType"]
                 self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
             # Update or insert the document
             self.collection_insight.update_one(
@@ -128,6 +136,9 @@ class MongoDBConnector:
                             message["startTime"]=step["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                             message["status"]="completed"
                             message["endTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+                            del message["audioUrl"]
+                            del message["contextUrl"]
+                            del message["contextType"]
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
