@@ -85,19 +85,19 @@ detections:
           - Person
   6:
     steps:
-      - id: 18
+      - id: 28
         items:
           - Person
-      - id: 19
+      - id: 29
         items:
           - Aadhar_front
           - Person
 
-      - id: 20
+      - id: 30
         items:
           - Pan_front
           - Person
-      - id: 21
+      - id: 31
         items: []
       - id: -1
         items:
@@ -109,15 +109,15 @@ detections:
           - Person
   5:
     steps:
-      - id: 13
+      - id: 23
         items:
           - case
           - mobile
-      - id: 14
+      - id: 24
         items:
           - case
-      - id: 15
+      - id: 25
         items:
           - flash
-      - id: 16
+      - id: 26
         items: []
