@@ -108,8 +108,8 @@ class MongoDBConnector:
                 
                 
                 message["repetition"]=data_to_insert["steps"][-1]["repetition"]
-                steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
-                message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+                steps_with_time["startTime"] = data_to_insert["steps"][-1]["startTime"]  # Adding start_time
+                message["startTime"]=data_to_insert["steps"][-1]["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                 if 'audioUrl' in message:
                     del message["audioUrl"]
                 del message["contextUrl"]
@@ -141,8 +141,10 @@ class MongoDBConnector:
                             message["endTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                             if 'audioUrl' in message:
                                 del message["audioUrl"]
-                            del message["contextUrl"]
-                            del message["contextType"]
+                            if "contextUrl" in message:
+                                del message["contextUrl"]
+                            if "contextType" in message:    
+                                del message["contextType"]
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
