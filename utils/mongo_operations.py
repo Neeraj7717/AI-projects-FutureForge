@@ -98,8 +98,8 @@ class MongoDBConnector:
                 data_to_insert["steps"].append(steps_with_time)
             if 'audioUrl' in message and message["audioUrl"]!= "":
                 steps_with_time = dict(steps)
-                message["videoUrl"]= ""
-                message["status"]="failed"
+                # message["videoUrl"]= ""
+                # message["status"]="failed"
                 #print(data_to_insert["steps"])
                 #print("\n\n")
                 data_to_insert["steps"][-1]["repetition"]+=1
