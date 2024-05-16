@@ -83,3 +83,41 @@ detections:
         items:
           - Pan_back
           - Person
+  6:
+    steps:
+      - id: 18
+        items:
+          - Person
+      - id: 19
+        items:
+          - Aadhar_front
+          - Person
+
+      - id: 20
+        items:
+          - Pan_front
+          - Person
+      - id: 21
+        items: []
+      - id: -1
+        items:
+          - Aadhar_back
+          - Person
+      - id: -2
+        items:
+          - Pan_back
+          - Person
+  5:
+    steps:
+      - id: 13
+        items:
+          - case
+          - mobile
+      - id: 14
+        items:
+          - case
+      - id: 15
+        items:
+          - flash
+      - id: 16
+        items: []
