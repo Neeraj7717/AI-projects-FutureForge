@@ -254,7 +254,7 @@ class TaskManager:
                         
                         
                         
-                        Text = f"you are holding {items} but you have to hold {true_items} "
+                        Text = f"You are holding {items} but you have to hold {true_items} "
                         
                         if items=="nothing" and true_items=="nothing":
                             Text= "Ensure you have good lighting conditions, Adjust your camera."
