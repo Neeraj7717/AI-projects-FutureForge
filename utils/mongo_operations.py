@@ -72,10 +72,10 @@ class MongoDBConnector:
                     steps_with_time = dict(steps)
                     steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
                     message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
-                    if 'audioUrl' in message:
-                        del message["audioUrl"]
-                    del message["contextUrl"]
-                    del message["contextType"]
+                    # if 'audioUrl' in message:
+                    #     del message["audioUrl"]
+                    # del message["contextUrl"]
+                    # del message["contextType"]
                     self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                     if int(steps["stepId"]) == total_steps + 1:
                         steps_with_time["status"] = "completed"
@@ -87,10 +87,10 @@ class MongoDBConnector:
                 steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
                 message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                 message["audioUrl"] = ""
-                if 'audioUrl' in message:
-                    del message["audioUrl"]
-                del message["contextUrl"]
-                del message["contextType"]
+                # if 'audioUrl' in message:
+                #     del message["audioUrl"]
+                # del message["contextUrl"]
+                # del message["contextType"]
                 self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 if int(steps["stepId"]) == total_steps + 1:
                     steps_with_time["status"] = "completed"
@@ -99,7 +99,7 @@ class MongoDBConnector:
             if 'audioUrl' in message and message["audioUrl"]!= "":
                 steps_with_time = dict(steps)
                 # message["videoUrl"]= ""
-                # message["status"]="failed"
+                message["status"]="failed"
                 #print(data_to_insert["steps"])
                 #print("\n\n")
                 data_to_insert["steps"][-1]["repetition"]+=1
@@ -110,10 +110,10 @@ class MongoDBConnector:
                 message["repetition"]=data_to_insert["steps"][-1]["repetition"]
                 steps_with_time["startTime"] = data_to_insert["steps"][-1]["startTime"]  # Adding start_time
                 message["startTime"]=data_to_insert["steps"][-1]["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
-                if 'audioUrl' in message:
-                    del message["audioUrl"]
-                del message["contextUrl"]
-                del message["contextType"]
+                # if 'audioUrl' in message:
+                #     del message["audioUrl"]
+                # del message["contextUrl"]
+                # del message["contextType"]
                 self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
             # Update or insert the document
             self.collection_insight.update_one(
@@ -139,12 +139,14 @@ class MongoDBConnector:
                             message["startTime"]=step["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                             message["status"]="completed"
                             message["endTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
-                            if 'audioUrl' in message:
-                                del message["audioUrl"]
-                            if "contextUrl" in message:
-                                del message["contextUrl"]
-                            if "contextType" in message:    
-                                del message["contextType"]
+                            # if 'audioUrl' in message:
+                            #     del message["audioUrl"]
+                            # if "contextUrl" in message:
+                            #     del message["contextUrl"]
+                            # if "contextType" in message:    
+                            #     del message["contextType"]
+                            # print(document)
+                            message["repetition"]=document['steps'][-1]["repetition"]
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
