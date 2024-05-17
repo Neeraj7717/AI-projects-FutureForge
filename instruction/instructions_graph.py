@@ -260,7 +260,7 @@ class TaskManager:
                             Text= "Ensure you have good lighting conditions, Adjust your camera."
                             
                         print(f"\n\n{Text}\n\n")    
-                        response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 1})
+                        response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
                         data = json.loads(response.content.decode("utf-8"))
                         message["audioUrl"]= data["file_path"]
                         message["step"]=Text
