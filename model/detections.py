@@ -72,6 +72,7 @@ class Detections:
         self.db1 = self.client["analytics"]
         self.db = self.client[config.stateless_db]  # Use or create a database
         self.collection = self.db[config.stateless_collection_detections]
+        self.lagcollection = self.db["lag"]
         self.monualCollection=self.db1["manual"]
         self.sessionSteps=self.db1["sessionSteps"]
         # self.llava = LlavaInference(steps=self.steps)
@@ -102,7 +103,41 @@ class Detections:
             # Insert a new document with the task as a list
             data = {"sourceId": sourceId, "tasks": [task], "sessionId": sessionId}
             self.collection.insert_one(data)
- 
+            
+    def reduce_lag(self, sourceId, sessionId):
+        """Store or update detections in MongoDB."""
+        # Check if the document with the given sourceId already exists
+        existing_document = self.lagcollection.find_one({"sessionId": sessionId})
+        
+        print(existing_document["lag"],"=====================================")
+        lag=existing_document["lag"]
+        if existing_document:
+            # Check if the sessionId matches the existing one
+            
+            self.lagcollection.update_one(
+                {"sessionId": sessionId},
+                {"$set": {"lag":lag-1}}
+            )
+        else:
+            # Insert a new document with the task as a list
+            data = {"lag": 0, "sessionId": sessionId}
+            self.lagcollection.insert_one(data)
+    def add_lag(self, sourceId, sessionId):
+        """Store or update detections in MongoDB."""
+        # Check if the document with the given sourceId already exists
+        existing_document = self.lagcollection.find_one({"sessionId": sessionId})
+        if existing_document:
+            # Check if the sessionId matches the existing one
+
+            self.lagcollection.update_one(
+                {"sessionId": sessionId},
+                {"$set":{"lag":5}}
+            )
+        else:
+            # Insert a new document with the task as a list
+            data = {"lag": 5, "sessionId": sessionId}
+            self.lagcollection.insert_one(data)
+
     def get_detection(self, sourceId):
         """Retrieve tasks from MongoDB."""
         data = self.collection.find_one({"sourceId": sourceId})
@@ -110,7 +145,14 @@ class Detections:
             return data["tasks"]
         else:
             return None
- 
+    def get_lag(self, sourceId,sessionId):
+        """Retrieve tasks from MongoDB."""
+        data = self.lagcollection.find_one({"sessionId": sessionId})
+        if data:
+            return data["lag"]
+        else:
+            data = self.lagcollection.insert_one({"sessionId": sessionId,"lag":0})
+            return 0
     def remove_detection(self, sourceId):
         """Remove detections from MongoDB."""
         self.collection.delete_one({"sourceId": sourceId})
@@ -186,17 +228,34 @@ class Detections:
                 logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
                 pass
             # Assign task based on detections
-            task = self.assign_task(things_present, sourceId, sessionId,manualId)
-            # print(things_present,task,manualId)
-            if task is not None:
+            
+            lag=self.get_lag(sourceId,sessionId)
 
-                document = self.monualCollection.find_one({"_id": int(manualId)})
-                steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
-                task_manager = TaskManager(steps=steps)                
-                print(f"The task number is: {task}") 
-                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,self.data)
-                logger.debug(f"Response from graph: {response}")
-                return 
+            if lag<=0:
+
+                task = self.assign_task(things_present, sourceId, sessionId,manualId)
+
+                if task is not None:
+
+                    document = self.monualCollection.find_one({"_id": int(manualId)})
+                    steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                    task_manager = TaskManager(steps=steps)                
+                    print(f"The task number is: {task}") 
+                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,self.data)
+                    logger.debug(f"Response from graph: {response}")
+                    # print(f"__________{response}_____________")
+
+                    if response == True:
+
+                        self.add_lag(sourceId,sessionId)
+
+                    logger.debug(f"Response from graph: {response}")
+
+
+            else:
+
+                self.reduce_lag(sourceId,sessionId)
+
             return 
                 
         except Exception as e:
@@ -273,16 +332,26 @@ class Detections:
                 logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
                 pass
             # Assign task based on detections
-            task = self.assign_task(things_present, sourceId, sessionId,manualId)
-            if task is not None:
-
-                document = self.monualCollection.find_one({"_id": int(manualId)})
-                steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
-                task_manager = TaskManager(steps=steps)                
-                logger.debug(f"The task number is: {task}") 
-                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,self.data)
-                logger.debug(f"Response from graph: {response}")
-                return things_present, response
+            
+            lag=self.get_lag(sourceId,sessionId)
+            if lag<=0:
+                task = self.assign_task(things_present, sourceId, sessionId,manualId)
+                if task is not None:
+                # lag=self.get_lag(sourceId,sessionId)
+                # print("==================================",lag)
+                # if lag<=0:
+                    document = self.monualCollection.find_one({"_id": int(manualId)})
+                    steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                    task_manager = TaskManager(steps=steps)                
+                    logger.debug(f"The task number is: {task}") 
+                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,self.data)
+                    # print(f"__________{response}_____________")
+                    if response == True:
+                        self.add_lag(sourceId,sessionId)
+                    logger.debug(f"Response from graph: {response}")
+                    return things_present, response
+            else:
+                self.reduce_lag(sourceId,sessionId)
             return things_present
                 
         except Exception as e:

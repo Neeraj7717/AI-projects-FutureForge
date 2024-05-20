@@ -150,7 +150,7 @@ class TaskManager:
                 #     video_instruction_kafka_topic,
                 #     value=json.dumps(message).encode("utf-8"),
                 # )
-                return self.steps[1]
+                return True
             else:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "yes":
@@ -242,6 +242,7 @@ class TaskManager:
                             if step["id"] == step_id:
                                 return step["items"]
                         return []
+                    things_present=list(set(things_present))
                     if task!=0:
                         true_items=get_items(int(current_step),int(manualId))[:]
                         if "Person" in true_items:
@@ -249,15 +250,20 @@ class TaskManager:
                         if "Person" in things_present:
                             things_present.remove("Person")
                         text=step_details["text"]
-                        items=", ".join(item for item in set(things_present)) if things_present else "nothing"
-                        true_items=", ".join(true_item for true_item in true_items) if true_items else "nothing"
                         
-                        
-                        
-                        Text = f"You are holding {items} but you have to hold {true_items} "
-                        
-                        if items=="nothing" and true_items=="nothing":
-                            Text= "Ensure you have good lighting conditions, Adjust your camera."
+                        def format_items(items):
+                            if len(items) > 1:
+                                return ', '.join(items[:-1]) + ' and ' + items[-1]
+                            elif len(items) == 1:
+                                return items[0]
+                            else:
+                                return 'nothing'
+                        if len(things_present) == 0 and len(true_items) == 0:
+                            Text = "You are holding nothing and you should hold nothing."
+                        else:
+                            items_text = format_items(things_present)
+                            true_items_text = format_items(true_items)
+                            Text = f"You are holding {items_text} but you have to hold {true_items_text}."
                             
                         print(f"\n\n{Text}\n\n")    
                         response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
@@ -265,7 +271,8 @@ class TaskManager:
                         message["audioUrl"]= data["file_path"]
                         message["step"]=Text
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
-       
+                    if task==0:
+                        return True
                 except Exception as e:
                     print(e)
                     return e
@@ -382,7 +389,7 @@ class TaskManager:
                     #     value=json.dumps(message).encode("utf-8"),
                     # )
                     logger.debug(next_step)
-                    return self.steps.get(next_step, "Please perform the next step.")
+                    return True
                 else:
                     return "Well Done! Your task is completed. Please confirm to start over."
             else:
