@@ -358,6 +358,94 @@ class Detections:
             logger.error(f"Error occurred: {e}")
             return e
  
+    
+    def text_action_detector(self, file, sourceId, sessionId, manualId):
+        """Perform object detection on the provided image file.
+ 
+        Args:
+            sourceId (str): Unique identifier for the source.
+            file (str): Path to the image file for detection.
+            sessionId (str): Unique identifier for the session.
+            manualId (str): Unique identifier for the manual.
+ 
+        Returns:
+            list: List of objects detected in the image.
+        """
+        try:
+            # Perform object detection
+            image_bytes = base64.b64decode(file)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
+            # Decode the numpy array to an image
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            image=file
+            try:
+                
+                height, width = image.shape[:2]
+ 
+                # Calculate the new dimensions (half of original)
+                new_width = width // 2
+                new_height = height // 2
+                image=cv2.resize(image,(new_width,new_height))
+                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+                logger.debug("Finished drawing bounding boxes")
+            except Exception as e:
+                logger.error(f"Error in CV2 Operations: {e}")
+                pass
+                
+            
+            # Connect to Kafka producer and send message
+            try:
+                producer = KafkaProducer(bootstrap_servers=self.kafka_url)
+            except Exception as e:
+                logger.error(f"Error in connecting to Kafka instance: {e}")
+                pass
+            message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+            try:
+                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+                pass
+            # Assign task based on detections
+            data=self.sessionSteps.find_one({"sessionId":sessionId})
+            if data==None:
+                document = self.monualCollection.find_one({"_id": int(manualId)})
+                steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                task_manager = TaskManager(steps=steps)
+                print("ssssstttttaaaarrrrttt")
+                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],self.data)
+                
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return e
+ 
+
+
+    def text_detector(self,file, sourceId, sessionId, manualId):
+
+        try:
+            print("=========1")
+            data=self.sessionSteps.find_one({"sessionId":sessionId})
+            print("==========2")
+            current_question=data['steps'][-1]["stepId"]
+            print("==========3",current_question,int(manualId))
+            answer=self.monualCollection.find_one({"_id":int(manualId)})
+            print("==========4",answer)
+            # print(answer["steps"])
+            for i in answer["steps"]:
+                print(int(current_question),i["id"])
+                if int(current_question)==i["id"]:
+                    if i["answer"]==file:
+                        document = self.monualCollection.find_one({"_id": int(manualId)})
+                        steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                        task_manager = TaskManager(steps=steps)
+                        print("ssssstttttaaaarrrrttt")
+                        response = task_manager.get_next_step(sessionId, sourceId, i["id"], manualId, "frame_bytes",[],self.data)
+                        return
+
+        except Exception as e:
+            print(e)
+
     def assign_task(self, things_present, sourceId, sessionId,manualId):
         """Perform object detection on the provided image file."""
         try:

@@ -79,14 +79,19 @@ class TaskManager:
         self.update_step(sessionId, 1)
  
     def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes,things_present,data):
+        print("==============0")
         manual = self.mongodb.get_document_by_id(document_id=int(manualId))
         current_step = self.get_current_step(sessionId, sourceId)
         total_steps = len(self.steps)
+
+        print("==============1")
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
         print(current_step,manual["steps"][-2]["id"],task)
         if current_step>manual["steps"][-2]["id"]:
             return
+        
+        print("==============2")
         if current_step == manual["steps"][-2]["id"] and (task == 0 or current_step==task):
             print("c\no\nr\nr\ne\nc\nt")
             if not self.model:
@@ -194,6 +199,7 @@ class TaskManager:
                     return self.steps[1]
                     
         elif task == 0 or task != current_step:
+            print("===================1")
             if not self.model:
                 for step in manual["steps"]:
                     if step["id"]==current_step:
@@ -219,6 +225,7 @@ class TaskManager:
                     "feedbackUrl": "",
                     "startTime": ""
                 }
+                print("===================2")
 
                 # self.producer.send(
                 #     video_instruction_kafka_topic,
