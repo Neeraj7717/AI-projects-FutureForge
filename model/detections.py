@@ -466,7 +466,7 @@ class Detections:
             things_present=list(set(things_present))
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
             # Converting the filter object to a list and getting the first item
-            task = next(matching_keys, None)
+            task = next(matching_keys, -1)
             # print(f"======{things_present}===={task}==========")
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
