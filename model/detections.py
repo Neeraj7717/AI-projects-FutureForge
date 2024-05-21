@@ -59,8 +59,8 @@ class Detections:
         #     1: "Please write an equation showing the formation of Water.",
         #     2: "Please write an equation showing the formation of Hydrochloric Acid."
         # }
-        with open('./Config/viaconfig.yaml', 'r') as file:
-            self.data = yaml.safe_load(file)
+        # with open('./Config/viaconfig.yaml', 'r') as file:
+        #     self.data = yaml.safe_load(file)
         self.model_path = config.path_of_model
         self.model = YOLO(self.model_path, "v8")
         self.frames_path = config.frames_path
@@ -122,7 +122,7 @@ class Detections:
             # Insert a new document with the task as a list
             data = {"lag": 0, "sessionId": sessionId}
             self.lagcollection.insert_one(data)
-    def add_lag(self, sourceId, sessionId):
+    def add_lag(self, sourceId, sessionId,time):
         """Store or update detections in MongoDB."""
         # Check if the document with the given sourceId already exists
         existing_document = self.lagcollection.find_one({"sessionId": sessionId})
@@ -131,11 +131,11 @@ class Detections:
 
             self.lagcollection.update_one(
                 {"sessionId": sessionId},
-                {"$set":{"lag":5}}
+                {"$set":{"lag":time}}
             )
         else:
             # Insert a new document with the task as a list
-            data = {"lag": 5, "sessionId": sessionId}
+            data = {"lag": time, "sessionId": sessionId}
             self.lagcollection.insert_one(data)
 
     def get_detection(self, sourceId):
@@ -230,10 +230,9 @@ class Detections:
             # Assign task based on detections
             
             lag=self.get_lag(sourceId,sessionId)
-
             if lag<=0:
 
-                task = self.assign_task(things_present, sourceId, sessionId,manualId)
+                task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
 
                 if task is not None:
 
@@ -241,17 +240,15 @@ class Detections:
                     steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
                     task_manager = TaskManager(steps=steps)                
                     print(f"The task number is: {task}") 
-                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,self.data)
-                    logger.debug(f"Response from graph: {response}")
-                    # print(f"__________{response}_____________")
-
-                    if response == True:
-
-                        self.add_lag(sourceId,sessionId)
-
+                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
                     logger.debug(f"Response from graph: {response}")
 
 
+                    if response !=0 and response!=None:
+
+                        self.add_lag(sourceId,sessionId,response)
+
+                    logger.debug(f"Response from graph: {response}")
             else:
 
                 self.reduce_lag(sourceId,sessionId)
@@ -335,19 +332,17 @@ class Detections:
             
             lag=self.get_lag(sourceId,sessionId)
             if lag<=0:
-                task = self.assign_task(things_present, sourceId, sessionId,manualId)
+
+                task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
                 if task is not None:
-                # lag=self.get_lag(sourceId,sessionId)
-                # print("==================================",lag)
-                # if lag<=0:
                     document = self.monualCollection.find_one({"_id": int(manualId)})
                     steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
                     task_manager = TaskManager(steps=steps)                
-                    logger.debug(f"The task number is: {task}") 
-                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,self.data)
-                    # print(f"__________{response}_____________")
-                    if response == True:
-                        self.add_lag(sourceId,sessionId)
+
+                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
+
+                    if response !=0 and response != None:
+                        self.add_lag(sourceId,sessionId,response)
                     logger.debug(f"Response from graph: {response}")
                     return things_present, response
             else:
@@ -412,8 +407,8 @@ class Detections:
                 document = self.monualCollection.find_one({"_id": int(manualId)})
                 steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
                 task_manager = TaskManager(steps=steps)
-                print("ssssstttttaaaarrrrttt")
-                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],self.data)
+
+                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
                 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
@@ -424,24 +419,30 @@ class Detections:
     def text_detector(self,file, sourceId, sessionId, manualId):
 
         try:
-            print("=========1")
             data=self.sessionSteps.find_one({"sessionId":sessionId})
-            print("==========2")
             current_question=data['steps'][-1]["stepId"]
-            print("==========3",current_question,int(manualId))
             answer=self.monualCollection.find_one({"_id":int(manualId)})
-            print("==========4",answer)
             # print(answer["steps"])
             for i in answer["steps"]:
                 print(int(current_question),i["id"])
+                response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
+                similarity = json.loads(response.content.decode("utf-8"))["similarity"]
+                
                 if int(current_question)==i["id"]:
-                    if i["answer"]==file:
-                        document = self.monualCollection.find_one({"_id": int(manualId)})
-                        steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
-                        task_manager = TaskManager(steps=steps)
+                    document = self.monualCollection.find_one({"_id": int(manualId)})
+                    steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                    task_manager = TaskManager(steps=steps)
+                    if similarity>0.7:
+                        
                         print("ssssstttttaaaarrrrttt")
-                        response = task_manager.get_next_step(sessionId, sourceId, i["id"], manualId, "frame_bytes",[],self.data)
+                        response = task_manager.get_next_step(sessionId, sourceId, i["id"], manualId, "frame_bytes",[],{})
                         return
+                    else:
+
+                        print("ffffaaaaiiilllleedddd")
+                        response = task_manager.get_next_step(sessionId, sourceId, -1, manualId, "frame_bytes",["text_based_model"],{})
+                        return
+
 
         except Exception as e:
             print(e)
@@ -449,23 +450,18 @@ class Detections:
     def assign_task(self, things_present, sourceId, sessionId,manualId):
         """Perform object detection on the provided image file."""
         try:
-
+            
             # Load the YAML data from the file
             data=self.sessionSteps.find_one({"sessionId":sessionId})
+            manual=self.monualCollection.find_one({"_id":int(manualId)})
+            map = {step['id']: step['answer'] for step in manual['steps'] if 'answer' in step}
             if data==None:
-                return 0
-
+                return 0,map
             # Define a function to create the mapping for a given source ID
-            def create_mapping(source_id):
-                mapping = {}
-                if int(source_id) in self.data['detections']:
-                    for step in self.data['detections'][int(source_id)]['steps']:
-                        mapping[step['id']] = step['items']
-                return mapping
 
             # Example usage:
               # Change this to the desired source ID
-            map = create_mapping(manualId)
+            map = {step['id']: step['answer'] for step in manual['steps'] if 'answer' in step}
             # print(map)
             things_present=list(set(things_present))
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
@@ -474,7 +470,6 @@ class Detections:
             # print(f"======{things_present}===={task}==========")
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
- 
             # Retrieve detections from MongoDB
             saved_detections = self.get_detection(sourceId)
             if saved_detections:
@@ -482,7 +477,7 @@ class Detections:
  
             if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
                 self.remove_detection(sourceId)
-                return task
+                return task,map
             elif len(set(saved_detections)) > 1:
                 self.remove_detection(sourceId)
                 return None
