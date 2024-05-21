@@ -204,8 +204,8 @@ class Detections:
                 height, width = image.shape[:2]
  
                 # Calculate the new dimensions (half of original)
-                new_width = width // 2
-                new_height = height // 2
+                new_width = width 
+                new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
                 frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
@@ -305,8 +305,8 @@ class Detections:
                 height, width = image.shape[:2]
  
                 # Calculate the new dimensions (half of original)
-                new_width = width // 2
-                new_height = height // 2
+                new_width = width 
+                new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
                 frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
