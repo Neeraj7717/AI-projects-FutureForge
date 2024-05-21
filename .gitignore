@@ -18,3 +18,5 @@ utils/__pycache__/mongo_operations.cpython-310.pyc
 instruction/__pycache__/
 model/__pycache__/
 Config/__pycache__/
+env/
+utils/__pycache__/

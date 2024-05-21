@@ -22,6 +22,6 @@ class Settings(BaseSettings):
     t2v_endpoint : str
     insights_collection: str
     port_number: str
-    
+    text_compare_url: str
     class Config:
         env_file = "./.env"

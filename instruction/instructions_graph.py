@@ -82,11 +82,13 @@ class TaskManager:
         manual = self.mongodb.get_document_by_id(document_id=int(manualId))
         current_step = self.get_current_step(sessionId, sourceId)
         total_steps = len(self.steps)
+
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
         print(current_step,manual["steps"][-2]["id"],task)
         if current_step>manual["steps"][-2]["id"]:
             return
+        
         if current_step == manual["steps"][-2]["id"] and (task == 0 or current_step==task):
             print("c\no\nr\nr\ne\nc\nt")
             if not self.model:
@@ -150,7 +152,7 @@ class TaskManager:
                 #     video_instruction_kafka_topic,
                 #     value=json.dumps(message).encode("utf-8"),
                 # )
-                return True
+                return step_details["time"]
             else:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "yes":
@@ -238,33 +240,36 @@ class TaskManager:
                 }
                 try:
                     def get_items(step_id, manual_id):
-                        for step in data["detections"].get(manual_id, {}).get("steps", []):
-                            if step["id"] == step_id:
-                                return step["items"]
-                        return []
+                        return data[step_id]
                     things_present=list(set(things_present))
+
                     if task!=0:
-                        true_items=get_items(int(current_step),int(manualId))[:]
-                        if "Person" in true_items:
-                            true_items.remove("Person")
-                        if "Person" in things_present:
-                            things_present.remove("Person")
-                        text=step_details["text"]
-                        
-                        def format_items(items):
-                            if len(items) > 1:
-                                return ', '.join(items[:-1]) + ' and ' + items[-1]
-                            elif len(items) == 1:
-                                return items[0]
-                            else:
-                                return 'nothing'
-                        if len(things_present) == 0 and len(true_items) == 0:
-                            Text = "You are holding nothing and you should hold nothing."
+                        if "text_based_model" in things_present:
+                            Text="Your answer is incorrect."
                         else:
-                            items_text = format_items(things_present)
-                            true_items_text = format_items(true_items)
-                            Text = f"You are holding {items_text} but you have to hold {true_items_text}."
+                            true_items=get_items(int(current_step),int(manualId))[:]
+                            if "Person" in true_items:
+                                true_items.remove("Person")
+                            if "Person" in things_present:
+                                things_present.remove("Person")
+                            text=step_details["text"]
                             
+                            def format_items(items):
+                                if len(items) > 1:
+                                    return ', '.join(items[:-1]) + ' and ' + items[-1]
+                                elif len(items) == 1:
+                                    return items[0]
+                                else:
+                                    return 'nothing'
+                            if len(things_present) == 0 and len(true_items) == 0:
+                                Text = "You are holding nothing and you should hold nothing."
+                            else:
+                                items_text = format_items(things_present)
+                                true_items_text = format_items(true_items)
+                                Text = f"You are holding {items_text} but you have to hold {true_items_text}."
+                                
+                            if Text=="You are holding nothing and you should hold nothing.":
+                                Text="Ensure you are having good lighting."
                         print(f"\n\n{Text}\n\n")    
                         response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
                         data = json.loads(response.content.decode("utf-8"))
@@ -272,12 +277,12 @@ class TaskManager:
                         message["step"]=Text
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                     if task==0:
-                        return True
+                        return step_details["time"]
                 except Exception as e:
                     print(e)
                     return e
                 logger.debug(current_step)
-                return self.steps[current_step]
+                return 0
             else:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "Yes":
@@ -389,7 +394,7 @@ class TaskManager:
                     #     value=json.dumps(message).encode("utf-8"),
                     # )
                     logger.debug(next_step)
-                    return True
+                    return step_details["time"]
                 else:
                     return "Well Done! Your task is completed. Please confirm to start over."
             else:
