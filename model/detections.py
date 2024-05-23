@@ -204,8 +204,8 @@ class Detections:
                 height, width = image.shape[:2]
  
                 # Calculate the new dimensions (half of original)
-                new_width = width // 2
-                new_height = height // 2
+                new_width = width 
+                new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
                 frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
@@ -237,7 +237,7 @@ class Detections:
                 if task is not None:
 
                     document = self.monualCollection.find_one({"_id": int(manualId)})
-                    steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
                     task_manager = TaskManager(steps=steps)                
                     print(f"The task number is: {task}") 
                     response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
@@ -305,8 +305,8 @@ class Detections:
                 height, width = image.shape[:2]
  
                 # Calculate the new dimensions (half of original)
-                new_width = width // 2
-                new_height = height // 2
+                new_width = width 
+                new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
                 frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
@@ -329,14 +329,15 @@ class Detections:
                 logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
                 pass
             # Assign task based on detections
-            
             lag=self.get_lag(sourceId,sessionId)
-            if lag<=0:
 
+            if lag<=0:
                 task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
                 if task is not None:
                     document = self.monualCollection.find_one({"_id": int(manualId)})
-                    steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+
+                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+
                     task_manager = TaskManager(steps=steps)                
 
                     response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
@@ -405,7 +406,7 @@ class Detections:
             data=self.sessionSteps.find_one({"sessionId":sessionId})
             if data==None:
                 document = self.monualCollection.find_one({"_id": int(manualId)})
-                steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
                 task_manager = TaskManager(steps=steps)
 
                 response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
@@ -424,18 +425,18 @@ class Detections:
             answer=self.monualCollection.find_one({"_id":int(manualId)})
             # print(answer["steps"])
             for i in answer["steps"]:
-                print(int(current_question),i["id"])
+                print(int(current_question),i["_id"])
                 response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
                 similarity = json.loads(response.content.decode("utf-8"))["similarity"]
                 
-                if int(current_question)==i["id"]:
+                if int(current_question)==i["_id"]:
                     document = self.monualCollection.find_one({"_id": int(manualId)})
-                    steps = {step["id"]: step["text"] for step in document["steps"][:-1]}
+                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
                     task_manager = TaskManager(steps=steps)
                     if similarity>0.7:
                         
                         print("ssssstttttaaaarrrrttt")
-                        response = task_manager.get_next_step(sessionId, sourceId, i["id"], manualId, "frame_bytes",[],{})
+                        response = task_manager.get_next_step(sessionId, sourceId, i["_id"], manualId, "frame_bytes",[],{})
                         return
                     else:
 
@@ -453,20 +454,22 @@ class Detections:
             
             # Load the YAML data from the file
             data=self.sessionSteps.find_one({"sessionId":sessionId})
+
             manual=self.monualCollection.find_one({"_id":int(manualId)})
-            map = {step['id']: step['answer'] for step in manual['steps'] if 'answer' in step}
+
+            map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
             if data==None:
                 return 0,map
             # Define a function to create the mapping for a given source ID
 
             # Example usage:
               # Change this to the desired source ID
-            map = {step['id']: step['answer'] for step in manual['steps'] if 'answer' in step}
+            map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
             # print(map)
             things_present=list(set(things_present))
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
             # Converting the filter object to a list and getting the first item
-            task = next(matching_keys, None)
+            task = next(matching_keys, -1)
             # print(f"======{things_present}===={task}==========")
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
