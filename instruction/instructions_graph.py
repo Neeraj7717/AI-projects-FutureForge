@@ -85,22 +85,22 @@ class TaskManager:
 
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
-        print(current_step,manual["steps"][-2]["id"],task)
-        if current_step>manual["steps"][-2]["id"]:
+        print(current_step,manual["steps"][-2]["_id"],task)
+        if current_step>manual["steps"][-2]["_id"]:
             return
         
-        if current_step == manual["steps"][-2]["id"] and (task == 0 or current_step==task):
+        if current_step == manual["steps"][-2]["_id"] and (task == 0 or current_step==task):
             print("c\no\nr\nr\ne\nc\nt")
             if not self.model:
                 self.update_step(sessionId,current_step+2)
 
                 for step in manual["steps"]:
-                    if step["id"]==current_step:
+                    if step["_id"]==current_step:
                         step_details=step
                         break
                 logger.debug(step_details["text"])
                 message = {
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
                     "videoUrl": step_details["url"],
                     "manualId": manualId,
@@ -118,7 +118,7 @@ class TaskManager:
                 self.mongodb.add_end_time(sessionId, current_step,message)
                 step_details = manual["steps"][-1]
                 message = {
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
                     "videoUrl": step_details["url"],
                     "manualId": manualId,
@@ -136,7 +136,7 @@ class TaskManager:
                 steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
@@ -147,7 +147,7 @@ class TaskManager:
                 }
                 self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                 message["status"]="completed"
-                self.mongodb.add_end_time(sessionId, step_details["id"],message)
+                self.mongodb.add_end_time(sessionId, step_details["_id"],message)
                 # self.producer.send(
                 #     video_instruction_kafka_topic,
                 #     value=json.dumps(message).encode("utf-8"),
@@ -162,7 +162,7 @@ class TaskManager:
                     steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
@@ -173,7 +173,7 @@ class TaskManager:
                     }
 
                     message = {
-                        "stepId": str(step_details["id"]),
+                        "stepId": str(step_details["_id"]),
                         "sessionId": sessionId,
                         "videoUrl": step_details["url"],
                         "manualId": manualId,
@@ -198,7 +198,7 @@ class TaskManager:
         elif task == 0 or task != current_step:
             if not self.model:
                 for step in manual["steps"]:
-                    if step["id"]==current_step:
+                    if step["_id"]==current_step:
                         step_details=step
                         break
 
@@ -206,7 +206,7 @@ class TaskManager:
                 # self.mongodb.add_end_time(sessionId, next_step)
                 logger.debug(step_details["text"])
                 message = {
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
                     "videoUrl": step_details["url"],
                     "manualId": manualId,
@@ -229,7 +229,7 @@ class TaskManager:
                 steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
@@ -287,12 +287,12 @@ class TaskManager:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "Yes":
                     for step in manual["steps"]:
-                        if step["id"]==current_step:
+                        if step["_id"]==current_step:
                             step_details=step
                             break
                     logger.debug(step_details["text"])
                     message = {
-                        "stepId": str(step_details["id"]),
+                        "stepId": str(step_details["_id"]),
                         "sessionId": sessionId,
                         "videoUrl": step_details["url"],
                         "manualId": manualId,
@@ -310,7 +310,7 @@ class TaskManager:
                     steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
@@ -333,12 +333,12 @@ class TaskManager:
                 if next_step is not None:
                     self.update_step(sessionId, next_step)
                     for step in manual["steps"]:
-                        if step["id"]==current_step:
+                        if step["_id"]==current_step:
                             step_details=step
                             break
                     logger.debug(step_details["text"])
                     message = {
-                        "stepId": str(step_details["id"]),
+                        "stepId": str(step_details["_id"]),
                         "sessionId": sessionId,
                         "videoUrl": step_details["url"],
                         "manualId": manualId,
@@ -355,12 +355,12 @@ class TaskManager:
                         }
                     self.mongodb.add_end_time(sessionId, current_step,message)
                     for step in manual["steps"]:
-                        if step["id"]==next_step:
+                        if step["_id"]==next_step:
                             step_details=step
                             break
                     logger.debug(step_details["text"])
                     message = {
-                        "stepId": str(step_details["id"]),
+                        "stepId": str(step_details["_id"]),
                         "sessionId": sessionId,
                         "videoUrl": step_details["url"],
                         "manualId": manualId,
@@ -378,7 +378,7 @@ class TaskManager:
                     steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
-                    "stepId": str(step_details["id"]),
+                    "stepId": str(step_details["_id"]),
                     "step": step_details["text"],
                     "status": "inProgress",
                     "duration": "",
@@ -403,11 +403,11 @@ class TaskManager:
                     if next_step is not None:
                         self.update_step(sessionId, next_step)
                         for step in manual["steps"]:
-                            if step["id"]==current_step:
+                            if step["_id"]==current_step:
                                 step_details=step
                                 break
                         message = {
-                            "stepId": str(step_details["id"]),
+                            "stepId": str(step_details["_id"]),
                             "sessionId": sessionId,
                             "videoUrl": step_details["url"],
                             "manualId": manualId,
@@ -424,11 +424,11 @@ class TaskManager:
                         }
                         self.mongodb.add_end_time(sessionId, current_step,message)
                         for step in manual["steps"]:
-                            if step["id"]==current_step:
+                            if step["_id"]==current_step:
                                 step_details=step
                                 break
                         message = {
-                            "stepId": str(step_details["id"]),
+                            "stepId": str(step_details["_id"]),
                             "sessionId": sessionId,
                             "videoUrl": step_details["url"],
                             "manualId": manualId,
@@ -444,12 +444,12 @@ class TaskManager:
                             "startTime": ""
                         }
                         for step in manual["steps"]:
-                            if step["id"]==next_step:
+                            if step["_id"]==next_step:
                                 step_details=step
                                 break
                         logger.debug(step_details["text"])
                         message = {
-                            "stepId": str(step_details["id"]),
+                            "stepId": str(step_details["_id"]),
                             "sessionId": sessionId,
                             "videoUrl": step_details["url"],
                             "manualId": manualId,
@@ -467,7 +467,7 @@ class TaskManager:
                         steps_mongo = {
                             "sessionId": sessionId,
                             "manualId": manualId,
-                            "stepId": str(step_details["id"]),
+                            "stepId": str(step_details["_id"]),
                             "step": step_details["text"],
                             "status": "inProgress",
                             "duration": "",
