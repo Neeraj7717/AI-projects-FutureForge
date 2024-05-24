@@ -71,6 +71,7 @@ class MongoDBConnector:
                     # Append new stepId to steps list
                     steps_with_time = dict(steps)
                     steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
+                    steps_with_time["endTime"] = datetime.datetime.now(datetime.timezone.utc) 
                     message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                     # if 'audioUrl' in message:
                     #     del message["audioUrl"]
