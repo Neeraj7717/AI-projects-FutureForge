@@ -138,7 +138,7 @@ class MongoDBConnector:
                 for step in document["steps"]:
                     if step["stepId"] == step_id:
                         # Check if endTime already exists, if not, set current time
-                        if "endTime" not in step:
+                        if step["status"]!="completed":
                             step["endTime"] = datetime.datetime.now(datetime.timezone.utc)
                             message["startTime"]=step["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                             message["status"]="completed"
