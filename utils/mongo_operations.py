@@ -84,7 +84,9 @@ class MongoDBConnector:
                 
                 # Insert new document
                 steps_with_time = dict(steps)
-                steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc)  # Adding start_time
+                steps_with_time["startTime"] = datetime.datetime.now(datetime.timezone.utc) 
+                steps_with_time["endTime"] = datetime.datetime.now(datetime.timezone.utc) 
+                # Adding start_time
                 message["startTime"]=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                 message["audioUrl"] = ""
                 # if 'audioUrl' in message:
@@ -109,6 +111,7 @@ class MongoDBConnector:
                 
                 message["repetition"]=data_to_insert["steps"][-1]["repetition"]
                 steps_with_time["startTime"] = data_to_insert["steps"][-1]["startTime"]  # Adding start_time
+                steps_with_time["endTime"] = datetime.datetime.now(datetime.timezone.utc) 
                 message["startTime"]=data_to_insert["steps"][-1]["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
                 # if 'audioUrl' in message:
                 #     del message["audioUrl"]
