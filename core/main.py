@@ -160,6 +160,8 @@ async def text_input(input_data: Input):
     
     # Perform hand detection
     detector.text_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+    
+    return {"result":"success"}
 
 
 
