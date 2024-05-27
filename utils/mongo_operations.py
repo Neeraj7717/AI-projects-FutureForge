@@ -151,6 +151,7 @@ class MongoDBConnector:
                             #     del message["contextType"]
                             # print(document)
                             message["repetition"]=document['steps'][-1]["repetition"]
+                            print(self.video_instruction_kafka_topic,message)
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
