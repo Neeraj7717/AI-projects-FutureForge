@@ -78,8 +78,8 @@ class MongoDBConnector:
                     # del message["contextUrl"]
                     # del message["contextType"]
                     self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
-                    if int(steps["stepId"]) == total_steps + 1:
-                        steps_with_time["status"] = "completed"
+                    #if int(steps["stepId"]) == total_steps + 1:
+                    #    steps_with_time["status"] = "completed"
                     data_to_insert["steps"].append(steps_with_time)
             else:
                 
@@ -136,10 +136,10 @@ class MongoDBConnector:
             document = self.collection_insight.find_one({"sessionId": session_id})
             if document:
                 for step in document["steps"]:
-                    print(step)
+                    #print(step)
                     if step["stepId"] == step_id:
                         # Check if endTime already exists, if not, set current time
-                        print(step)
+                        #print(step)
                         if step["status"]!="completed":
                             step["endTime"] = datetime.datetime.now(datetime.timezone.utc)
                             message["startTime"]=step["startTime"].strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
@@ -151,9 +151,9 @@ class MongoDBConnector:
                             #     del message["contextUrl"]
                             # if "contextType" in message:    
                             #     del message["contextType"]
-                            print(document)
+                            #print(document)
                             message["repetition"]=document['steps'][-1]["repetition"]
-                            print(self.video_instruction_kafka_topic,message)
+                            #print(self.video_instruction_kafka_topic,message)
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
