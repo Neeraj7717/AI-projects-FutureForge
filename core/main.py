@@ -160,6 +160,8 @@ async def text_input(input_data: Input):
     
     # Perform hand detection
     detector.text_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+    
+    return {"result":"success"}
 
 @app.post("/image_input")
 async def image_upload(input_data: Input):
