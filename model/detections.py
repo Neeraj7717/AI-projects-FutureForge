@@ -31,41 +31,20 @@ logger = logging.getLogger()
 console_handler = logging.StreamHandler()
 logger.addHandler(console_handler)
  
-# map = {
-#     7 : ["case", "mobile"],
-#     8 : ["case"],
-#     9 : ["case", "charger"],
-#     10 : ["flash"],
-#     11 : []
-# }
-# map = {
-#     1 : ["paper"],
-#     0 : []
-# }
+
  
 class Detections:
     """Class for performing object detection and assigning tasks based on detections."""
  
     def __init__(self):
         """Initialize object detection model and other necessary parameters."""
-        # self.steps = {
-        #     1: "Pick up the phone and its cases.",
-        #     2: "Assemble the Case to phone.",
-        #     3: "Take the charger in your hand and connect it to phone.",
-        #     4: "Turn on the flashlight on your phone.",
-        #     5: "Turn off the flashlight and put your phone down"
-        # }
-        # self.steps = {
-        #     1: "Please write an equation showing the formation of Water.",
-        #     2: "Please write an equation showing the formation of Hydrochloric Acid."
-        # }
-        # with open('./Config/viaconfig.yaml', 'r') as file:
-        #     self.data = yaml.safe_load(file)
+
         self.model_path = config.path_of_model
         self.model = YOLO(self.model_path, "v8")
         self.frames_path = config.frames_path
         self.kafka_url = config.kafka_url
         self.ekycmodel=YOLO(config.path_of_ekyc_model, "v8")
+        self.chairmodel=YOLO(config.path_of_chair_model,"v8")
         self.video_details_kafka_topic = config.video_details_kafka_topic
         self.shared_path = config.shared_path
         self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
@@ -186,18 +165,7 @@ class Detections:
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
         
-            # result=self.ekycmodel.predict(file)
-            # names=result[0].names
-            # things_present=[names[result[0].probs.top1]]    
-            # height, width = file.shape[:2]
 
-            # # Calculate the new dimensions (half of original)
-            # new_width = width // 2
-            # new_height = height // 2
-            # image=cv2.resize(file,(new_width,new_height))
-            # compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-            # frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-            # Draw bounding boxes on the image
  
             try:
                 image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
@@ -286,20 +254,7 @@ class Detections:
             logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
-            # else:
-            #     result=self.ekycmodel.predict(file)
-            #     names=result[0].names
-            #     things_present=[names[result[0].probs.top1]]    
-            #     height, width = file.shape[:2]
- 
-            #     # Calculate the new dimensions (half of original)
-            #     new_width = width // 2
-            #     new_height = height // 2
-            #     image=cv2.resize(file,(new_width,new_height))
-            #     compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-            #     frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-            # Draw bounding boxes on the image
- 
+
             try:
                 image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
                 height, width = image.shape[:2]
@@ -352,6 +307,56 @@ class Detections:
                 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
+            return e
+ 
+    def image_input(self, file, sourceId, sessionId, manualId):
+        """Perform object detection on the provided image file.
+ 
+        Args:
+            sourceId (str): Unique identifier for the source.
+            file (str): Path to the image file for detection.
+            sessionId (str): Unique identifier for the session.
+            manualId (str): Unique identifier for the manual.
+ 
+        Returns:
+            list: List of objects detected in the image.
+        """
+        try:
+            # Perform object detection
+            image_bytes = base64.b64decode(file)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
+            # Decode the numpy array to an image
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            # if manualId!=str(4):
+            detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+            dic = vars(detection_output[0])
+            names = dic["names"]
+            detected_class = dic["boxes"].cpu().numpy()
+            things_present = [names[name] for name in detected_class.cls]
+            logger.debug(f"The Detections are {things_present}")
+
+
+
+            task,map = self.assign_current_task(things_present, sourceId, sessionId,manualId)
+            if task is not None:
+                document = self.monualCollection.find_one({"_id": int(manualId)})
+
+                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+
+                task_manager = TaskManager(steps=steps)                
+
+                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, image_bytes,things_present,map)
+
+                if response !=0 and response != None:
+                    self.add_lag(sourceId,sessionId,response)
+                logger.debug(f"Response from graph: {response}")
+                return things_present, response
+            
+            return things_present
+                
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            print(e)
             return e
  
     
@@ -410,7 +415,6 @@ class Detections:
                 task_manager = TaskManager(steps=steps)
 
                 response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
-                
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
@@ -448,6 +452,110 @@ class Detections:
         except Exception as e:
             print(e)
 
+        
+    def chair_action_detector(self, file, sourceId, sessionId, manualId):
+        """Perform object detection on the provided image file.
+ 
+        Args:
+            sourceId (str): Unique identifier for the source.
+            file (str): Path to the image file for detection.
+            sessionId (str): Unique identifier for the session.
+            manualId (str): Unique identifier for the manual.
+ 
+        Returns:
+            list: List of objects detected in the image.
+        """
+        try:
+            # Perform object detection
+            frame_bytes=file
+            image_bytes = base64.b64decode(file)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
+            # Decode the numpy array to an image
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            cv2.imwrite("1.jpg",file)
+            # if manualId!=str(4):
+            detection_output = self.chairmodel.predict(source=file, conf=0.25, save=False)   
+            dic = vars(detection_output[0])
+            names = dic["names"]
+            # print(names)
+            detected_class = dic["boxes"].cpu().numpy()
+            things_present = [names[name] for name in detected_class.cls]
+            print("=================",things_present)
+            try:
+                response  = requests.post(config.action_detection_api, json={"file" : frame_bytes, "sourceId":sourceId,"sessionId": sessionId,"manualId" :manualId})
+                print(response)
+                data = json.loads(response.content.decode("utf-8"))
+                things_present+=data
+                print(things_present)
+            except Exception as e:
+                print(e)
+            logger.debug(f"The Detections are {things_present}")
+            a = detection_output[0].boxes
+            xyxy = a.xyxy.cpu().numpy()
+        
+
+ 
+            try:
+                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
+                height, width = image.shape[:2]
+ 
+                # Calculate the new dimensions (half of original)
+                new_width = width 
+                new_height = height 
+                image=cv2.resize(image,(new_width,new_height))
+                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+                logger.debug("Finished drawing bounding boxes")
+            except Exception as e:
+                logger.error(f"Error in CV2 Operations: {e}")
+                pass
+                
+            
+            # Connect to Kafka producer and send message
+            try:
+                producer = KafkaProducer(bootstrap_servers=self.kafka_url)
+            except Exception as e:
+                logger.error(f"Error in connecting to Kafka instance: {e}")
+                pass
+            message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+            try:
+                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+                pass
+            # Assign task based on detections
+            
+            lag=self.get_lag(sourceId,sessionId)
+            if lag<=0:
+
+                task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
+
+                if task is not None:
+
+                    document = self.monualCollection.find_one({"_id": int(manualId)})
+                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+                    task_manager = TaskManager(steps=steps)                
+                    print(f"The task number is: {task}") 
+                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
+                    logger.debug(f"Response from graph: {response}")
+
+
+                    if response !=0 and response!=None:
+
+                        self.add_lag(sourceId,sessionId,response)
+
+                    logger.debug(f"Response from graph: {response}")
+            else:
+
+                self.reduce_lag(sourceId,sessionId)
+
+            return 
+                
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return e
+
+
     def assign_task(self, things_present, sourceId, sessionId,manualId):
         """Perform object detection on the provided image file."""
         try:
@@ -484,6 +592,34 @@ class Detections:
             elif len(set(saved_detections)) > 1:
                 self.remove_detection(sourceId)
                 return None
+ 
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return e
+    def assign_current_task(self, things_present, sourceId, sessionId,manualId):
+        """Perform object detection on the provided image file."""
+        try:
+            
+            # Load the YAML data from the file
+            data=self.sessionSteps.find_one({"sessionId":sessionId})
+
+            manual=self.monualCollection.find_one({"_id":int(manualId)})
+
+            map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
+            if data==None:
+                return 0,map
+            # Define a function to create the mapping for a given source ID
+
+            # Example usage:
+              # Change this to the desired source ID
+            map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
+            # print(map)
+            things_present=list(set(things_present))
+            matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
+            # Converting the filter object to a list and getting the first item
+            task = next(matching_keys, -1)
+
+            return task,map
  
         except Exception as e:
             logger.error(f"Error occurred: {e}")

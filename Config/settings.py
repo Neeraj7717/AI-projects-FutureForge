@@ -23,5 +23,8 @@ class Settings(BaseSettings):
     insights_collection: str
     port_number: str
     text_compare_url: str
+    path_of_chair_model: str
+    action_detection_api:str
+
     class Config:
         env_file = "./.env"
