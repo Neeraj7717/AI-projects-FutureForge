@@ -51,7 +51,7 @@ class TaskManager:
         self.llava = LlavaInference(steps=self.steps)
  
     def get_current_step(self, sessionId, sourceId):
-        document = self.collection.find_one({"sessionId": sessionId, "sourceId": sourceId})
+        document = self.collection.find_one({"sessionId": sessionId})
         start_step=list(self.task_graph.get_graph().keys())[0]
         if document:
             # Check if 'current_step' field exists; if not, add it with a value of 1
@@ -65,7 +65,7 @@ class TaskManager:
                 return document['current_step']
         else:
             # This condition might not be needed anymore, but kept for safety
-            self.collection.insert_one({"sessionId": sessionId, "sourceId": sourceId, "current_step": start_step})
+            self.collection.insert_one({"sessionId": sessionId, "current_step": start_step})
             return start_step
  
     def update_step(self, sessionId, step):
