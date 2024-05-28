@@ -17,6 +17,7 @@ from instruction.instructions_graph import TaskManager
 from utils.api_client import APIClient
 from instruction.instructions_llava import LlavaInference
 import cv2
+from s3utils import generaloperations
  
 # Load configurations from settings
 config = Settings()
@@ -322,13 +323,16 @@ class Detections:
             list: List of objects detected in the image.
         """
         try:
+            bucket_name = 'eizen-dev'
+            cloud_path = '/'.join(file.split('/')[3:])
+            local_store_path = file.split('/')[-1]
+            file = generaloperations.download_from_s3_bucket(bucket_name, cloud_path, local_store_path)
+            print(f"Downloaded file: {file}")
             # Perform object detection
-            image_bytes = base64.b64decode(file)
-            file = np.frombuffer(image_bytes, dtype=np.uint8)
-            # Decode the numpy array to an image
-            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
             # if manualId!=str(4):
             detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+
+            os.remove(file)
             dic = vars(detection_output[0])
             names = dic["names"]
             detected_class = dic["boxes"].cpu().numpy()
@@ -345,7 +349,7 @@ class Detections:
 
                 task_manager = TaskManager(steps=steps)                
 
-                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, image_bytes,things_present,map)
+                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, "image_bytes",things_present,map)
 
                 if response !=0 and response != None:
                     self.add_lag(sourceId,sessionId,response)

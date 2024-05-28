@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     text_compare_url: str
     path_of_chair_model: str
     action_detection_api:str
+    ACCESS_KEY:str
+    SECRET_KEY:str
 
     class Config:
         env_file = "./.env"
