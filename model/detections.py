@@ -484,6 +484,7 @@ class Detections:
             # print(names)
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[name] for name in detected_class.cls]
+            detected_things=things_present[:]
             print("=================",things_present)
             try:
                 response  = requests.post(config.action_detection_api, json={"file" : frame_bytes, "sourceId":sourceId,"sessionId": sessionId,"manualId" :manualId})
@@ -500,7 +501,7 @@ class Detections:
 
  
             try:
-                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
+                image = cv2_operations().draw_bounding_boxes(file, xyxy, detected_things, "1.jpg")
                 height, width = image.shape[:2]
  
                 # Calculate the new dimensions (half of original)
