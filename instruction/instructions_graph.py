@@ -52,7 +52,10 @@ class TaskManager:
  
     def get_current_step(self, sessionId, sourceId):
         document = self.collection.find_one({"sessionId": sessionId})
-        start_step=list(self.task_graph.get_graph().keys())[0]
+        try:
+            start_step=list(self.task_graph.get_graph().keys())[0]
+        except:
+            start_step=0
         if document:
             # Check if 'current_step' field exists; if not, add it with a value of 1
             if 'current_step' not in document:
@@ -115,7 +118,6 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                 }
-            print("-------------------------------"*3)
             self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
             message["status"]="completed"
             self.mongodb.add_end_time(sessionId, step_details["_id"],message)
