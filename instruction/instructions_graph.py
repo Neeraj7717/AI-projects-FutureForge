@@ -85,6 +85,39 @@ class TaskManager:
 
         next_step = self.task_graph.get_next(current_step)
         self.model = manual["model"]
+        if len(manual["steps"])==1:
+            step_details=manual["steps"][0]
+            message = {
+                    "stepId": str(step_details["_id"]),
+                    "sessionId": sessionId,
+                    "videoUrl": step_details["url"],
+                    "manualId": manualId,
+                    "step": step_details["text"],
+                    "status": "inProgress",
+                    "endTime": "",
+                    "audioUrl":"",
+                    "contextUrl": step_details["contextUrl"],
+                    "contextType":step_details["contextType"],
+                    "repetition": 0,
+                    "feedback": "",
+                    "feedbackUrl": "",
+                    "startTime": ""
+                    }
+            steps_mongo = {
+                    "sessionId": sessionId,
+                    "manualId": manualId,
+                    "stepId": str(step_details["_id"]),
+                    "step": step_details["text"],
+                    "status": "inProgress",
+                    "duration": "",
+                    "repetition": 0,
+                    "feedback": "",
+                    "videoUrl": step_details["url"],
+                    "feedbackUrl": ""
+                }
+            self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+            message["status"]="completed"
+            self.mongodb.add_end_time(sessionId, step_details["_id"],message)
         print(current_step,manual["steps"][-2]["_id"],task)
         if current_step>manual["steps"][-2]["_id"]:
             return
