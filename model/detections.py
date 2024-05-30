@@ -1,4 +1,5 @@
 import base64
+import datetime
 import os
 import json
 import logging
@@ -18,6 +19,7 @@ from utils.api_client import APIClient
 from instruction.instructions_llava import LlavaInference
 import cv2
 from s3utils import generaloperations
+from utils.llmOperations import QuestionAnswerModel
  
 # Load configurations from settings
 config = Settings()
@@ -55,6 +57,7 @@ class Detections:
         self.lagcollection = self.db["lag"]
         self.monualCollection=self.db1["manual"]
         self.sessionSteps=self.db1["sessionSteps"]
+        self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
         # self.llava = LlavaInference(steps=self.steps)
         self.api_client = APIClient(config.llava_endpoint)
     
@@ -432,25 +435,58 @@ class Detections:
             current_question=data['steps'][-1]["stepId"]
             answer=self.monualCollection.find_one({"_id":int(manualId)})
             # print(answer["steps"])
-            for i in answer["steps"]:
-                print(int(current_question),i["_id"])
-                response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
-                similarity = json.loads(response.content.decode("utf-8"))["similarity"]
-                
-                if int(current_question)==i["_id"]:
-                    document = self.monualCollection.find_one({"_id": int(manualId)})
-                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-                    task_manager = TaskManager(steps=steps)
-                    if similarity>0.7:
-                        
-                        print("ssssstttttaaaarrrrttt")
-                        response = task_manager.get_next_step(sessionId, sourceId, i["_id"], manualId, "frame_bytes",[],{})
-                        return
-                    else:
+            print("======================")
+            if len(answer["steps"])>1:
+                for i in answer["steps"]:
+                    print(int(current_question),i["_id"])
+                    response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
+                    similarity = json.loads(response.content.decode("utf-8"))["similarity"]
+                    
+                    if int(current_question)==i["_id"]:
+                        document = self.monualCollection.find_one({"_id": int(manualId)})
+                        steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+                        task_manager = TaskManager(steps=steps)
+                        if similarity>0.7:
+                            
+                            print("ssssstttttaaaarrrrttt")
+                            response = task_manager.get_next_step(sessionId, sourceId, i["_id"], manualId, "frame_bytes",[],{})
+                            return
+                        else:
 
-                        print("ffffaaaaiiilllleedddd")
-                        response = task_manager.get_next_step(sessionId, sourceId, -1, manualId, "frame_bytes",["text_based_model"],{})
-                        return
+                            print("ffffaaaaiiilllleedddd")
+                            response = task_manager.get_next_step(sessionId, sourceId, -1, manualId, "frame_bytes",["text_based_model"],{})
+                            return
+            else:
+                context = '''### Instruction: This is the context file for data in KFC so answer the questions for the customer.
+                     ### Context: KFC offers a variety of chicken burgers including the Classic Chicken Burger, Tandoori Chicken Burger, Crispy Chicken Burger, and Chicken Tikka Burger, along with sides like fries, and beverages such as Mirinda, Pepsi, and 7Up.'''
+                try:
+                    "==========="
+                    qamodel = QuestionAnswerModel()
+                    response1 = qamodel.generate_answer(context = context, question = file)
+                    print("Generated Answer:", response1["answer"])
+
+                    response  = requests.post(config.t2v_endpoint, json={"text" : response1["answer"], "gender": 0})
+                    data = json.loads(response.content.decode("utf-8"))
+                    message={
+                        "sessionId": sessionId,
+                        "videoUrl": "",
+                        "audioUrl": data["file_path"],
+                        "contextUrl": "emt",
+                        "contextType": "emt",
+                        "manualId": manualId,
+                        "stepId": 1,
+                        "step": response1["answer"],
+                        "status": "inProgress",
+                        "repetition": 0,
+                        "feedback": "",
+                        "feedbackUrl": "",
+                        "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        }
+                    self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+                    print("======")
+                except Exception as e:
+                    print(e)
 
 
         except Exception as e:

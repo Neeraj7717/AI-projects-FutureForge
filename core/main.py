@@ -163,6 +163,30 @@ async def text_input(input_data: Input):
     
     return {"result":"success"}
 
+
+@app.post("/chat_input")
+async def chat_input(input_data: Input):
+    """
+    Endpoint for performing detections.
+
+    Args:
+        input_data (Input): Input data containing file path, sourceId, sessionId, and manualId.
+
+    Returns:
+        dict: Dictionary containing the output of detection.
+    """
+    # Extract input data
+    a=datetime.datetime.now()
+    file = input_data.file
+    sourceId = input_data.sourceId
+    sessionId = input_data.sessionId
+    manualId = input_data.manualId
+    
+    # Perform hand detection
+    detector.chat_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+    
+    return {"result":"success"}
+
 @app.post("/image_input")
 async def image_upload(input_data: Input):
     """
