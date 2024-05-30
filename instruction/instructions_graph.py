@@ -52,7 +52,10 @@ class TaskManager:
  
     def get_current_step(self, sessionId, sourceId):
         document = self.collection.find_one({"sessionId": sessionId})
-        start_step=list(self.task_graph.get_graph().keys())[0]
+        try:
+            start_step=list(self.task_graph.get_graph().keys())[0]
+        except:
+            start_step=0
         if document:
             # Check if 'current_step' field exists; if not, add it with a value of 1
             if 'current_step' not in document:
