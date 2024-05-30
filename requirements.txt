@@ -77,3 +77,5 @@ urllib3==2.2.1
 uvicorn==0.27.1
 kafka-python
 boto3==1.34.113
+transformers==4.41.1
+langchain-community==0.2.1
