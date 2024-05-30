@@ -115,6 +115,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                 }
+            print("-------------------------------"*3)
             self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
             message["status"]="completed"
             self.mongodb.add_end_time(sessionId, step_details["_id"],message)
