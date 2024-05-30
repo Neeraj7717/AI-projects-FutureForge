@@ -431,12 +431,13 @@ class Detections:
     def text_detector(self,file, sourceId, sessionId, manualId):
 
         try:
-            data=self.sessionSteps.find_one({"sessionId":sessionId})
-            current_question=data['steps'][-1]["stepId"]
+            
             answer=self.monualCollection.find_one({"_id":int(manualId)})
             # print(answer["steps"])
             print("======================")
             if len(answer["steps"])>1:
+                data=self.sessionSteps.find_one({"sessionId":sessionId})
+                current_question=data['steps'][-1]["stepId"]
                 for i in answer["steps"]:
                     print(int(current_question),i["_id"])
                     response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
@@ -476,7 +477,7 @@ class Detections:
                         "manualId": manualId,
                         "stepId": 1,
                         "step": response1["answer"],
-                        "status": "inProgress",
+                        "status": "failed",
                         "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
