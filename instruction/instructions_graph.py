@@ -313,6 +313,8 @@ class TaskManager:
                         response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
                         data = json.loads(response.content.decode("utf-8"))
                         message["audioUrl"]= data["file_path"]
+                        if manual["_id"]== 13:
+                            message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
                         message["step"]=Text
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                     if task==0:
