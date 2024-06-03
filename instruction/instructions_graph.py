@@ -281,7 +281,10 @@ class TaskManager:
 
                     if task!=0:
                         if "text_based_model" in things_present:
-                            Text="You are doing something wrong please look into demo image."
+                            if step_details["conetextType"]!="emt":
+                                Text="For the more information please look into demo image."
+                            else:
+                                Text="The answer you provided is incorrect"
                         else:
                             true_items=get_items(int(current_step),int(manualId))[:]
                             if "Person" in true_items:
