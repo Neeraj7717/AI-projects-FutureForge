@@ -447,7 +447,7 @@ class Detections:
                         document = self.monualCollection.find_one({"_id": int(manualId)})
                         steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
                         task_manager = TaskManager(steps=steps)
-                        if similarity>0.7:
+                        if similarity>0.9:
                             
                             print("ssssstttttaaaarrrrttt")
                             response = task_manager.get_next_step(sessionId, sourceId, i["_id"], manualId, "frame_bytes",[],{})
