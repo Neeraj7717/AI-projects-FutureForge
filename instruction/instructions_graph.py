@@ -281,7 +281,7 @@ class TaskManager:
 
                     if task!=0:
                         if "text_based_model" in things_present:
-                            Text="Your answer is incorrect."
+                            Text="You are doing something wrong please look into demo image."
                         else:
                             true_items=get_items(int(current_step),int(manualId))[:]
                             if "Person" in true_items:
