@@ -281,7 +281,7 @@ class TaskManager:
 
                     if task!=0:
                         if "text_based_model" in things_present:
-                            if step_details["conetextType"]!="emt":
+                            if step_details["contextType"]!="emt":
                                 Text="For the more information please look into demo image."
                             else:
                                 Text="The answer you provided is incorrect"
