@@ -18,7 +18,7 @@ class QuestionAnswerModel:
         """
         # self.tokens = Tokens()
         self.repo_id = "google/flan-t5-xxl"
-        self.api_token = "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"
+        self.api_token = "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"
         self.temperature = 0.5
         self.max_length = 64
 
