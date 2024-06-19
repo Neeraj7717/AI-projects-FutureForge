@@ -41,6 +41,8 @@ class Detections:
  
     def __init__(self):
         """Initialize object detection model and other necessary parameters."""
+        with open('Config/viaconfig.yaml', 'r') as file:
+            self.data = yaml.safe_load(file)
 
         self.model_path = config.path_of_model
         self.model = YOLO(self.model_path, "v8")
@@ -60,7 +62,15 @@ class Detections:
         self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
         # self.llava = LlavaInference(steps=self.steps)
         self.api_client = APIClient(config.llava_endpoint)
+        self.contextCollection=self.db1["contexts"]
     
+    def get_manual_name(self,manual_id):
+        for model in self.data['models']:
+            for manual in model['manuals']:
+                if manual_id in manual['ids']:
+                    return manual['name']
+        return None
+
     def store_detection(self, sourceId, task, sessionId):
         """Store or update detections in MongoDB."""
         # Check if the document with the given sourceId already exists
@@ -312,7 +322,7 @@ class Detections:
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
- 
+
     def image_input(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
  
@@ -333,8 +343,26 @@ class Detections:
             print(f"Downloaded file: {file}")
             # Perform object detection
             # if manualId!=str(4):
-            detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+            modelname=self.get_manual_name(int(manualId))
+            if modelname=="phone":
+                detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+            elif modelname=="ekyc":
+                detection_output = self.ekycmodel.predict(source=file, conf=0.25, save=False)   
+            elif modelname=="chair":
+                detection_output = self.chairmodel.predict(source=file, conf=0.25, save=False)   
+            else:
+                document = self.monualCollection.find_one({"_id": int(manualId)})
 
+                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+
+                task_manager = TaskManager(steps=steps) 
+                try:
+                    task,map = self.assign_current_task([], sourceId, sessionId,manualId)
+                except:
+                    map={}
+                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, "image_bytes",[],map)
+                os.remove(file)
+                return
             os.remove(file)
             dic = vars(detection_output[0])
             names = dic["names"]
@@ -458,14 +486,24 @@ class Detections:
                             response = task_manager.get_next_step(sessionId, sourceId, -1, manualId, "frame_bytes",["text_based_model"],{})
                             return
             else:
-                context = '''### Instruction: This is the context file for data in KFC so answer the questions for the customer.
-                     ### Context: KFC offers a variety of chicken burgers including the Classic Chicken Burger, Tandoori Chicken Burger, Crispy Chicken Burger, and Chicken Tikka Burger, along with sides like fries, and beverages such as Mirinda, Pepsi, and 7Up.'''
+                context=self.contextCollection.find_one({"manualId":manualId})["context"]
+                # context = ''' KFC offers a variety of chicken burgers including the Classic Chicken Burger, Tandoori Chicken Burger, Crispy Chicken Burger, and Chicken Tikka Burger, along with sides like fries, and beverages such as Mirinda, Pepsi, and 7Up.'''
                 try:
                     "==========="
-                    qamodel = QuestionAnswerModel()
-                    response1 = qamodel.generate_answer(context = context, question = file)
-                    print("Generated Answer:", response1["answer"])
+                    # qamodel = QuestionAnswerModel()
+                    # response1 = qamodel.generate_answer(context = context, question = file)
 
+
+                    print(file,"-"*19)
+
+                    response1  = requests.post(config.context_based_question_answer, json={
+                                                                            "context": context,
+                                                                            "question": file
+                                                                            })
+                    response1 = json.loads(response1.content.decode("utf-8"))
+                    print("Generated Answer:", response1["answer"])
+                    # response1={}
+                    # response1["answer"]="hello"
                     response  = requests.post(config.t2v_endpoint, json={"text" : response1["answer"], "gender": 0})
                     data = json.loads(response.content.decode("utf-8"))
                     message={

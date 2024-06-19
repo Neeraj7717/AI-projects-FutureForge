@@ -7,6 +7,7 @@
 ./utils/__pycache__/directoryOperations.cpython-310.pyc
 ./utils/__pycache__/mongo_operations.cpython-310.pyc
 ./Config/__pycache__/settings.cpython-310.pyc
+./s3utils/__pycache__/generaloperations.cpython-312.pyc
 ./instruction/__pycache__/instructions_graph.cpython-310.pyc
 ./instruction/__pycache__/instructions_llava.cpython-310.pyc
 ./model/__pycache__/detections.cpython-310.pyc
