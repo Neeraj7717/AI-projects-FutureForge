@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     action_detection_api:str
     ACCESS_KEY:str
     SECRET_KEY:str
+    context_based_question_answer:str
 
     class Config:
         env_file = "./.env"

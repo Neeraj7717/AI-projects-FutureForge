@@ -41,6 +41,8 @@ class Detections:
  
     def __init__(self):
         """Initialize object detection model and other necessary parameters."""
+        with open('Config/viaconfig.yaml', 'r') as file:
+            self.data = yaml.safe_load(file)
 
         self.model_path = config.path_of_model
         self.model = YOLO(self.model_path, "v8")
@@ -60,7 +62,15 @@ class Detections:
         self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
         # self.llava = LlavaInference(steps=self.steps)
         self.api_client = APIClient(config.llava_endpoint)
+        self.contextCollection=self.db1["contexts"]
     
+    def get_manual_name(self,manual_id):
+        for model in self.data['models']:
+            for manual in model['manuals']:
+                if manual_id in manual['ids']:
+                    return manual['name']
+        return None
+
     def store_detection(self, sourceId, task, sessionId):
         """Store or update detections in MongoDB."""
         # Check if the document with the given sourceId already exists
@@ -312,7 +322,7 @@ class Detections:
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
- 
+
     def image_input(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
  
@@ -333,8 +343,26 @@ class Detections:
             print(f"Downloaded file: {file}")
             # Perform object detection
             # if manualId!=str(4):
-            detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+            modelname=self.get_manual_name(int(manualId))
+            if modelname=="phone":
+                detection_output = self.model.predict(source=file, conf=0.25, save=False)   
+            elif modelname=="ekyc":
+                detection_output = self.ekycmodel.predict(source=file, conf=0.25, save=False)   
+            elif modelname=="chair":
+                detection_output = self.chairmodel.predict(source=file, conf=0.25, save=False)   
+            else:
+                document = self.monualCollection.find_one({"_id": int(manualId)})
 
+                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+
+                task_manager = TaskManager(steps=steps) 
+                try:
+                    task,map = self.assign_current_task([], sourceId, sessionId,manualId)
+                except:
+                    map={}
+                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, "image_bytes",[],map)
+                os.remove(file)
+                return
             os.remove(file)
             dic = vars(detection_output[0])
             names = dic["names"]
@@ -458,18 +486,24 @@ class Detections:
                             response = task_manager.get_next_step(sessionId, sourceId, -1, manualId, "frame_bytes",["text_based_model"],{})
                             return
             else:
-                context = '''### Instruction: This is the context file for data in KFC so answer the questions for the customer.
-                     ### Context: KFC offers a variety of chicken burgers including the Classic Chicken Burger, Tandoori Chicken Burger, Crispy Chicken Burger, and Chicken Tikka Burger, along with sides like fries, and beverages such as Mirinda, Pepsi, and 7Up.'''
-                if int(manualId)==14:
-                    context = '''### Instruction: This is the context file for data of pine labs machine help costumer this context.
-                     ### Context: Pine Labs offers a merchant platform that includes technology and financial solutions for merchants to help them in increasing their revenue, reducing the cost and complexity of running a business, and managing the risks involved. The company connects financial institutions and consumer brands to empower merchants to deliver value to their retail customers. Pine Labs and its technology platform power offline and online last-mile retail transactions, provide customer insights to merchants for targeted sales, and offer risk-managed financial solutions for merchants’ business growth. Today, over 100,000 merchants in India and several other Asian countries use Pine Labs’ platform and solutions to run accessible, affordable, speedy, and risk-managed last-mile retail operations. Pine Labs’ solutions are used by merchants from diverse sectors - electronics, food & beverage, fashion, pharmacy, telecom, and airlines. The company’s cloud-based platform powers over 330,000 point-of-sale terminals. Over 550 million digital transactions are processed over Pine Labs’ platforms every year, helping more than 100 million retail customers. The company has a presence in 3,700 cities and towns across India and Malaysia. Fifteen major banks, seven financial services institutions, and over 100 brands are currently a part of Pine Labs’ platform. Steps to Print a Charge Slip via Pine Labs' Platform: 1. Tap the static QR and ask the customer to scan the QR. 2. Check whether payment is successful. 3. To print the charge slip, tap on payments. 4. Select UPI - Static QR - Print Charge Slip. 5. Print charge slip. 6. Select last 15 min transactions. 7. Now tap on the first option. 8. Tap on the button to view and print charge slip. 9. Click on print for the hard copy of the charge slip. 10. You have completed successfully. Please collect the receipt.'''
-                
+                context=self.contextCollection.find_one({"manualId":manualId})["context"]
+                # context = ''' KFC offers a variety of chicken burgers including the Classic Chicken Burger, Tandoori Chicken Burger, Crispy Chicken Burger, and Chicken Tikka Burger, along with sides like fries, and beverages such as Mirinda, Pepsi, and 7Up.'''
                 try:
                     "==========="
-                    qamodel = QuestionAnswerModel()
-                    response1 = qamodel.generate_answer(context = context, question = file)
-                    print("Generated Answer:", response1["answer"])
+                    # qamodel = QuestionAnswerModel()
+                    # response1 = qamodel.generate_answer(context = context, question = file)
 
+
+                    print(file,"-"*19)
+
+                    response1  = requests.post(config.context_based_question_answer, json={
+                                                                            "context": context,
+                                                                            "question": file
+                                                                            })
+                    response1 = json.loads(response1.content.decode("utf-8"))
+                    print("Generated Answer:", response1["answer"])
+                    # response1={}
+                    # response1["answer"]="hello"
                     response  = requests.post(config.t2v_endpoint, json={"text" : response1["answer"], "gender": 0})
                     data = json.loads(response.content.decode("utf-8"))
                     message={
