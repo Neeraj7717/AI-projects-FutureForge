@@ -726,16 +726,20 @@ class Detections:
         print(image_paths,object_names)
         self.store_detection(sourceId, object_names, sessionId)
         saved_detections = self.get_detection(sourceId)
+
+        compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
+        frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+
         try:
             producer = KafkaProducer(bootstrap_servers=self.kafka_url)
         except Exception as e:
-            logger.error(f"Error in connecting to Kafka instance: {e}")
+            print(f"Error in connecting to Kafka instance: {e}")
             pass
         message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
         try:
             producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
         except Exception as e:
-            logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+            print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
             pass
         if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
             response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
