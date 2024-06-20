@@ -15,3 +15,7 @@ models:
       - name: "chair"
         ids:
           - 11
+      - name: "similar"
+        ids:
+          - 15
+      
