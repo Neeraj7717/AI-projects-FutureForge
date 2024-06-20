@@ -4,10 +4,12 @@ import os
 import json
 import logging
 import subprocess
+import faiss
 import zlib
 import numpy as np
 import requests
 import pymongo
+import torch
 import yaml
 from kafka import KafkaProducer
 from ultralytics import YOLO
@@ -20,7 +22,7 @@ from instruction.instructions_llava import LlavaInference
 import cv2
 from s3utils import generaloperations
 from utils.llmOperations import QuestionAnswerModel
- 
+from transformers import AutoImageProcessor, AutoModel
 # Load configurations from settings
 config = Settings()
  
@@ -63,6 +65,9 @@ class Detections:
         # self.llava = LlavaInference(steps=self.steps)
         self.api_client = APIClient(config.llava_endpoint)
         self.contextCollection=self.db1["contexts"]
+        self.device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
+        self.processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
+        self.similarmodel = AutoModel.from_pretrained('facebook/dinov2-small').to(self.device)
     
     def get_manual_name(self,manual_id):
         for model in self.data['models']:
@@ -350,6 +355,53 @@ class Detections:
                 detection_output = self.ekycmodel.predict(source=file, conf=0.25, save=False)   
             elif modelname=="chair":
                 detection_output = self.chairmodel.predict(source=file, conf=0.25, save=False)   
+            elif modelname=="similar":
+                file=cv2.imread(file)
+                with torch.no_grad():
+                    inputs = self.processor(images=file, return_tensors="pt").to(self.device)
+                    outputs = self.similarmodel(**inputs)
+                embeddings = outputs.last_hidden_state
+                embeddings = embeddings.mean(dim=1)
+                vector = embeddings.detach().cpu().numpy()
+                vector = np.float32(vector)
+                faiss.normalize_L2(vector)
+            
+                # Search the FAISS index
+                index = faiss.read_index("vectordb/vector.index")
+                d, i = index.search(vector, 1)
+                print(i)
+                json_file_path = 'vectordb/images.json'
+
+                # Load JSON data
+                with open(json_file_path, 'r') as f:
+                    data = json.load(f)
+
+                images=list(data.keys())
+                # Retrieve image paths from the indices (assuming 'images' is a list of image paths)
+                image_paths = images[i[0][0]]
+            
+                # Retrieve object names from the data dictionary
+                object_names = data[image_paths]
+                response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
+                data = json.loads(response.content.decode("utf-8"))
+                message={
+                        "sessionId": sessionId,
+                        "videoUrl": "",
+                        "audioUrl": data["file_path"],
+                        "contextUrl": image_paths,
+                        "contextType": "img",
+                        "manualId": manualId,
+                        "stepId": 1,
+                        "step": f"The object you picked is {object_names}",
+                        "status": "failed",
+                        "repetition": 0,
+                        "feedback": "",
+                        "feedbackUrl": "",
+                        "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        }
+                self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+                return
             else:
                 document = self.monualCollection.find_one({"_id": int(manualId)})
 
@@ -634,6 +686,82 @@ class Detections:
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
+
+
+    def get_similar_image_detector(self, file, sourceId, sessionId, manualId):
+        frame_bytes=file
+        image_bytes = base64.b64decode(file)
+        file = np.frombuffer(image_bytes, dtype=np.uint8)
+        # Decode the numpy array to an image
+        file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+        with torch.no_grad():
+            inputs = self.processor(images=file, return_tensors="pt").to(self.device)
+            outputs = self.similarmodel(**inputs)
+    
+        # print(sourceId)
+        # Extract embeddings
+        embeddings = outputs.last_hidden_state
+        embeddings = embeddings.mean(dim=1)
+        vector = embeddings.detach().cpu().numpy()
+        vector = np.float32(vector)
+        faiss.normalize_L2(vector)
+
+        # Search the FAISS index
+        index = faiss.read_index("vectordb/vector.index")
+        # print(sessionId)
+    
+        d, i = index.search(vector, 1)
+        # print(i)
+        json_file_path = 'vectordb/images.json'
+
+        # Load JSON data
+        with open(json_file_path, 'r') as f:
+            data = json.load(f)
+
+        images=list(data.keys())
+        # Retrieve image paths from the indices (assuming 'images' is a list of image paths)
+        image_paths = images[i[0][0]]
+        # Retrieve object names from the data dictionary
+        object_names = data[image_paths]
+        print(image_paths,object_names)
+        self.store_detection(sourceId, object_names, sessionId)
+        saved_detections = self.get_detection(sourceId)
+        try:
+            producer = KafkaProducer(bootstrap_servers=self.kafka_url)
+        except Exception as e:
+            logger.error(f"Error in connecting to Kafka instance: {e}")
+            pass
+        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+        try:
+            producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+        except Exception as e:
+            logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+            pass
+        if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
+            response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
+            data = json.loads(response.content.decode("utf-8"))
+            message={
+                    "sessionId": sessionId,
+                    "videoUrl": "",
+                    "audioUrl": data["file_path"],
+                    "contextUrl": image_paths,
+                    "contextType": "img",
+                    "manualId": manualId,
+                    "stepId": 1,
+                    "step": f"The object you picked is {object_names}",
+                    "status": "failed",
+                    "repetition": 0,
+                    "feedback": "",
+                    "feedbackUrl": "",
+                    "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                    "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                    }
+            self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+            self.remove_detection(sourceId) 
+        elif len(set(saved_detections)) > 1:
+            self.remove_detection(sourceId) 
+    
+        return object_names
 
 
     def assign_task(self, things_present, sourceId, sessionId,manualId):
