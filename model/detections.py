@@ -741,6 +741,15 @@ class Detections:
         except Exception as e:
             print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
             pass
+
+        data=self.sessionSteps.find_one({"sessionId":sessionId})
+        if data==None:
+            document = self.monualCollection.find_one({"_id": int(manualId)})
+            steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+            task_manager = TaskManager(steps=steps)
+
+            response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
+
         if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
             response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
             data = json.loads(response.content.decode("utf-8"))
