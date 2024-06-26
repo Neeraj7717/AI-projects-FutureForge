@@ -10,4 +10,4 @@ RUN apt-get update && \
 
 COPY . /usr/app
 ENV PYTHONPATH /usr/app
-CMD ["python3","core/main.py"]
+CMD ["python3","core/main.py","--port","8081"]

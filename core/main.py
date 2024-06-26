@@ -84,8 +84,9 @@ async def ekyc_detect(input_data: Input):
     
     # Perform hand detection
     asyncio.create_task(ekyc_detector_action_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
-
-    # return {"output": []}
+    b=datetime.datetime.now()
+    print('Processing time is', b-a)
+    return {"output": []}
 
 async def ekyc_detector_action_detector(file, sourceId, sessionId, manualId):
     """
@@ -294,8 +295,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--port",
         type=int,
-        default=8108,
+        default=int(config.port_number),
         help="Port number to run the server on (default: 8078)",
     )
     args = parser.parse_args()
-    uvicorn.run(app, host="0.0.0.0", port=int(config.port_number))
+    uvicorn.run(app, host="0.0.0.0", port=args.port)

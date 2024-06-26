@@ -20,6 +20,7 @@ from instruction.instructions_graph import TaskManager
 from utils.api_client import APIClient
 from instruction.instructions_llava import LlavaInference
 import cv2
+import concurrent.futures
 from s3utils import generaloperations
 from utils.llmOperations import QuestionAnswerModel
 from transformers import AutoImageProcessor, AutoModel
@@ -68,7 +69,7 @@ class Detections:
         self.device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
         self.processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
         self.similarmodel = AutoModel.from_pretrained('facebook/dinov2-small').to(self.device)
-    
+        
     def get_manual_name(self,manual_id):
         for model in self.data['models']:
             for manual in model['manuals']:
@@ -155,6 +156,38 @@ class Detections:
         """Remove detections from MongoDB."""
         self.collection.delete_one({"sourceId": sourceId})
     
+    def send_instruction(self,sourceId,sessionId,manualId,things_present,frame_bytes):
+
+        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+        try:
+            self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+        except Exception as e:
+            logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+            pass
+        lag=self.get_lag(sourceId,sessionId)
+        if lag<=0:
+
+            task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
+
+            if task is not None:
+
+                document = self.monualCollection.find_one({"_id": int(manualId)})
+                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+                task_manager = TaskManager(steps=steps)                
+                print(f"The task number is: {task}") 
+                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
+                logger.debug(f"Response from graph: {response}")
+
+
+                if response !=0 and response!=None:
+
+                    self.add_lag(sourceId,sessionId,response)
+
+                logger.debug(f"Response from graph: {response}")
+        else:
+
+            self.reduce_lag(sourceId,sessionId)
+
     def ekyc_action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
  
@@ -183,7 +216,7 @@ class Detections:
             logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
-        
+            
 
  
             try:
@@ -202,45 +235,14 @@ class Detections:
                 pass
                 
             
-            # Connect to Kafka producer and send message
-            try:
-                producer = KafkaProducer(bootstrap_servers=self.kafka_url)
-            except Exception as e:
-                logger.error(f"Error in connecting to Kafka instance: {e}")
-                pass
-            message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
-            try:
-                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-                pass
-            # Assign task based on detections
+            # return 
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                # Assign task based on detections
+                executor.submit(self.send_instruction(sourceId,sessionId,manualId,things_present,frame_bytes))
+                return
+
             
-            lag=self.get_lag(sourceId,sessionId)
-            if lag<=0:
-
-                task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
-
-                if task is not None:
-
-                    document = self.monualCollection.find_one({"_id": int(manualId)})
-                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-                    task_manager = TaskManager(steps=steps)                
-                    print(f"The task number is: {task}") 
-                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
-                    logger.debug(f"Response from graph: {response}")
-
-
-                    if response !=0 and response!=None:
-
-                        self.add_lag(sourceId,sessionId,response)
-
-                    logger.debug(f"Response from graph: {response}")
-            else:
-
-                self.reduce_lag(sourceId,sessionId)
-
-            return 
                 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
