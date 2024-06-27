@@ -711,54 +711,56 @@ class Detections:
             self.remove_detection(sourceId) 
 
     def get_similar_image_detector(self, file, sourceId, sessionId, manualId):
-        frame_bytes=file
-        image_bytes = base64.b64decode(file)
-        file = np.frombuffer(image_bytes, dtype=np.uint8)
-        # Decode the numpy array to an image
-        file = cv2.imdecode(file, cv2.IMREAD_COLOR)
-        with torch.no_grad():
-            inputs = self.processor(images=file, return_tensors="pt").to(self.device)
-            outputs = self.similarmodel(**inputs)
-    
-        # print(sourceId)
-        # Extract embeddings
-        embeddings = outputs.last_hidden_state
-        embeddings = embeddings.mean(dim=1)
-        vector = embeddings.detach().cpu().numpy()
-        vector = np.float32(vector)
-        faiss.normalize_L2(vector)
+        try:
+            frame_bytes=file
+            image_bytes = base64.b64decode(file)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
+            # Decode the numpy array to an image
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            with torch.no_grad():
+                inputs = self.processor(images=file, return_tensors="pt").to(self.device)
+                outputs = self.similarmodel(**inputs)
+        
+            # print(sourceId)
+            # Extract embeddings
+            embeddings = outputs.last_hidden_state
+            embeddings = embeddings.mean(dim=1)
+            vector = embeddings.detach().cpu().numpy()
+            vector = np.float32(vector)
+            faiss.normalize_L2(vector)
 
-        # Search the FAISS index
-        index = faiss.read_index("vectordb/vector.index")
-        # print(sessionId)
-    
-        d, i = index.search(vector, 1)
-        # print(i)
-        json_file_path = 'vectordb/images.json'
+            # Search the FAISS index
+            index = faiss.read_index("vectordb/vector.index")
+            # print(sessionId)
+        
+            d, i = index.search(vector, 1)
+            # print(i)
+            json_file_path = 'vectordb/images.json'
 
-        # Load JSON data
-        with open(json_file_path, 'r') as f:
-            data = json.load(f)
+            # Load JSON data
+            with open(json_file_path, 'r') as f:
+                data = json.load(f)
 
-        images=list(data.keys())
-        # Retrieve image paths from the indices (assuming 'images' is a list of image paths)
-        image_paths = images[i[0][0]]
-        # Retrieve object names from the data dictionary
-        object_names = data[image_paths]
-        print(image_paths,object_names)
-        if object_names!="No object":
-            self.store_detection(sourceId, object_names, sessionId)
-            saved_detections = self.get_detection(sourceId)
-
-        compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
-        frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
-            # Assign task based on detections
-            executor.submit(self.send_every_instruction,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths)
-            return
-    
-        return object_names
+            images=list(data.keys())
+            # Retrieve image paths from the indices (assuming 'images' is a list of image paths)
+            image_paths = images[i[0][0]]
+            # Retrieve object names from the data dictionary
+            object_names = data[image_paths]
+            print(image_paths,object_names)
+            if object_names!="No object":
+                self.store_detection(sourceId, object_names, sessionId)
+                saved_detections = self.get_detection(sourceId)
+            
+            compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
+            frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+            print("starting thread")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                # Assign task based on detections
+                executor.submit(self.send_every_instruction,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths)
+                return
+        
+        except Exception as e:
+            print("error is ",e)
 
 
     def assign_task(self, things_present, sourceId, sessionId,manualId):
