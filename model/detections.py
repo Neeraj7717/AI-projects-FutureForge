@@ -749,7 +749,7 @@ class Detections:
             print(image_paths,object_names)
             if object_names!="No object":
                 self.store_detection(sourceId, object_names, sessionId)
-                saved_detections = self.get_detection(sourceId)
+            saved_detections = self.get_detection(sourceId)
             
             compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
             frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
