@@ -228,7 +228,7 @@ class Detections:
                 new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-                frame_bytes = base64.b64encode(cv2.imencode(".jpg", compressed_frame)[1]).decode("utf-8")
+                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")
             except Exception as e:
                 logger.error(f"Error in CV2 Operations: {e}")
