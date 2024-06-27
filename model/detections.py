@@ -227,8 +227,8 @@ class Detections:
                 new_width = width 
                 new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
-                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+                # compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+                frame_bytes = base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")
             except Exception as e:
                 logger.error(f"Error in CV2 Operations: {e}")
@@ -293,38 +293,10 @@ class Detections:
                 
             
             # Connect to Kafka producer and send message
-            try:
-                producer = KafkaProducer(bootstrap_servers=self.kafka_url)
-            except Exception as e:
-                logger.error(f"Error in connecting to Kafka instance: {e}")
-                pass
-            message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
-            try:
-                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-                pass
-            # Assign task based on detections
-            lag=self.get_lag(sourceId,sessionId)
-
-            if lag<=0:
-                task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
-                if task is not None:
-                    document = self.monualCollection.find_one({"_id": int(manualId)})
-
-                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-
-                    task_manager = TaskManager(steps=steps)                
-
-                    response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
-
-                    if response !=0 and response != None:
-                        self.add_lag(sourceId,sessionId,response)
-                    logger.debug(f"Response from graph: {response}")
-                    return things_present, response
-            else:
-                self.reduce_lag(sourceId,sessionId)
-            return things_present
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                # Assign task based on detections
+                executor.submit(self.send_instruction(sourceId,sessionId,manualId,things_present,frame_bytes))
+                return
                 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
@@ -449,6 +421,25 @@ class Detections:
             return e
  
     
+    def send_first_instruction(self,sessionId,frame_bytes,manualId,sourceId):
+                    # Connect to Kafka producer and send message
+        
+        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+        try:
+            self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+        except Exception as e:
+            logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+            pass
+        # Assign task based on detections
+        data=self.sessionSteps.find_one({"sessionId":sessionId})
+        if data==None:
+            document = self.monualCollection.find_one({"_id": int(manualId)})
+            steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+            task_manager = TaskManager(steps=steps)
+
+            response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
+        
+
     def text_action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
  
@@ -484,26 +475,13 @@ class Detections:
                 pass
                 
             
-            # Connect to Kafka producer and send message
-            try:
-                producer = KafkaProducer(bootstrap_servers=self.kafka_url)
-            except Exception as e:
-                logger.error(f"Error in connecting to Kafka instance: {e}")
-                pass
-            message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
-            try:
-                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-                pass
-            # Assign task based on detections
-            data=self.sessionSteps.find_one({"sessionId":sessionId})
-            if data==None:
-                document = self.monualCollection.find_one({"_id": int(manualId)})
-                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-                task_manager = TaskManager(steps=steps)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                # Assign task based on detections
+                executor.submit(self.send_first_instruction(sessionId,frame_bytes,manualId,sourceId))
+                return
 
-                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
+
+
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
@@ -690,6 +668,48 @@ class Detections:
             return e
 
 
+    def send_every_instruction(self,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths):
+
+        
+        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+        try:
+            self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+        except Exception as e:
+            print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+            pass
+
+        data=self.sessionSteps.find_one({"sessionId":sessionId})
+        if data==None:
+            document = self.monualCollection.find_one({"_id": int(manualId)})
+            steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+            task_manager = TaskManager(steps=steps)
+
+            response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
+
+        if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
+            response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
+            data = json.loads(response.content.decode("utf-8"))
+            message={
+                    "sessionId": sessionId,
+                    "videoUrl": "",
+                    "audioUrl": data["file_path"],
+                    "contextUrl": image_paths,
+                    "contextType": "img",
+                    "manualId": manualId,
+                    "stepId": 1,
+                    "step": f"The object you picked is {object_names}",
+                    "status": "failed",
+                    "repetition": 0,
+                    "feedback": "",
+                    "feedbackUrl": "",
+                    "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                    "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                    }
+            self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+            self.remove_detection(sourceId) 
+        elif len(set(saved_detections)) > 1:
+            self.remove_detection(sourceId) 
+
     def get_similar_image_detector(self, file, sourceId, sessionId, manualId):
         frame_bytes=file
         image_bytes = base64.b64decode(file)
@@ -733,49 +753,10 @@ class Detections:
         compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
         frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
 
-        try:
-            producer = KafkaProducer(bootstrap_servers=self.kafka_url)
-        except Exception as e:
-            print(f"Error in connecting to Kafka instance: {e}")
-            pass
-        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
-        try:
-            producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
-        except Exception as e:
-            print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-            pass
-
-        data=self.sessionSteps.find_one({"sessionId":sessionId})
-        if data==None:
-            document = self.monualCollection.find_one({"_id": int(manualId)})
-            steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-            task_manager = TaskManager(steps=steps)
-
-            response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
-
-        if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
-            response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
-            data = json.loads(response.content.decode("utf-8"))
-            message={
-                    "sessionId": sessionId,
-                    "videoUrl": "",
-                    "audioUrl": data["file_path"],
-                    "contextUrl": image_paths,
-                    "contextType": "img",
-                    "manualId": manualId,
-                    "stepId": 1,
-                    "step": f"The object you picked is {object_names}",
-                    "status": "failed",
-                    "repetition": 0,
-                    "feedback": "",
-                    "feedbackUrl": "",
-                    "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                    "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                    }
-            self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
-            self.remove_detection(sourceId) 
-        elif len(set(saved_detections)) > 1:
-            self.remove_detection(sourceId) 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+            # Assign task based on detections
+            executor.submit(self.send_every_instruction(sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths))
+            return
     
         return object_names
 
