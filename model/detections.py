@@ -755,7 +755,7 @@ class Detections:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
             # Assign task based on detections
-            executor.submit(self.send_every_instruction(sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths))
+            executor.submit(self.send_every_instruction,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths)
             return
     
         return object_names
