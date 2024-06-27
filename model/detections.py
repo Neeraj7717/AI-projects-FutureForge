@@ -227,8 +227,8 @@ class Detections:
                 new_width = width 
                 new_height = height 
                 image=cv2.resize(image,(new_width,new_height))
-                # compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-                frame_bytes = base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("utf-8")
+                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+                frame_bytes = base64.b64encode(cv2.imencode(".jpg", compressed_frame)[1]).decode("utf-8")
                 logger.debug("Finished drawing bounding boxes")
             except Exception as e:
                 logger.error(f"Error in CV2 Operations: {e}")
@@ -670,7 +670,7 @@ class Detections:
 
     def send_every_instruction(self,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths):
 
-        
+        print("sending frames and instruction")
         message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
         try:
             self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
