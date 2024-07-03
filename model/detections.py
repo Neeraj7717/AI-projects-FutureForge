@@ -180,7 +180,7 @@ class Detections:
                 steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
                 task_manager = TaskManager(steps=steps)                
                 print(f"The task number is: {task}") 
-                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
+                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, "",things_present,map)
                 logger.debug(f"Response from graph: {response}")
 
 
