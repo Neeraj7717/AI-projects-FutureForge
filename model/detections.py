@@ -160,7 +160,7 @@ class Detections:
     def send_instruction(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present):
         xyxy=xyxy.tolist()
         print(type(xyxy))
-        key_component=b"test"
+        key_component=sessionId.encode('utf-8') 
         message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
         try:
             self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
