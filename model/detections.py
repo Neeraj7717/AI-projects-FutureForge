@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import subprocess
+import traceback
 import faiss
 import zlib
 import numpy as np
@@ -156,13 +157,17 @@ class Detections:
         """Remove detections from MongoDB."""
         self.collection.delete_one({"sourceId": sourceId})
     
-    def send_instruction(self,sourceId,sessionId,manualId,things_present,frame_bytes):
-
-        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+    def send_instruction(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present):
+        xyxy=xyxy.tolist()
+        print(type(xyxy))
+        key_component=b"test"
+        message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
         try:
-            self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+            self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
+            print("________________________sending_bounding_boxes_________________________")
         except Exception as e:
-            logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+            print(f"Error sending message: {str(e)}")
+            traceback.print_exc()
             pass
         lag=self.get_lag(sourceId,sessionId)
         if lag<=0:
@@ -216,30 +221,31 @@ class Detections:
             logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
+            new_height, new_width = file.shape[:2]
             
 
  
-            try:
-                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
-                height, width = image.shape[:2]
+            # try:
+            #     image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
+            #     height, width = image.shape[:2]
  
-                # Calculate the new dimensions (half of original)
-                new_width = width 
-                new_height = height 
-                image=cv2.resize(image,(new_width,new_height))
-                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-                logger.debug("Finished drawing bounding boxes")
-            except Exception as e:
-                logger.error(f"Error in CV2 Operations: {e}")
-                pass
+            #     # Calculate the new dimensions (half of original)
+            #     new_width = width 
+            #     new_height = height 
+            #     image=cv2.resize(image,(new_width,new_height))
+            #     compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+            #     frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+            #     logger.debug("Finished drawing bounding boxes")
+            # except Exception as e:
+            #     logger.error(f"Error in CV2 Operations: {e}")
+            #     pass
                 
             
             # return 
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
                 # Assign task based on detections
-                executor.submit(self.send_instruction(sourceId,sessionId,manualId,things_present,frame_bytes))
+                executor.submit(self.send_instruction(xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present))
                 return
 
             
@@ -275,27 +281,28 @@ class Detections:
             logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
+            new_height, new_width = file.shape[:2]
 
-            try:
-                image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
-                height, width = image.shape[:2]
+            # try:
+            #     image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
+            #     height, width = image.shape[:2]
  
-                # Calculate the new dimensions (half of original)
-                new_width = width 
-                new_height = height 
-                image=cv2.resize(image,(new_width,new_height))
-                compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
-                frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-                logger.debug("Finished drawing bounding boxes")
-            except Exception as e:
-                logger.error(f"Error in CV2 Operations: {e}")
-                pass
+            #     # Calculate the new dimensions (half of original)
+            #     new_width = width 
+            #     new_height = height 
+            #     image=cv2.resize(image,(new_width,new_height))
+            #     compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
+            #     frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
+            #     logger.debug("Finished drawing bounding boxes")
+            # except Exception as e:
+            #     logger.error(f"Error in CV2 Operations: {e}")
+            #     pass
                 
             
             # Connect to Kafka producer and send message
             with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
                 # Assign task based on detections
-                executor.submit(self.send_instruction(sourceId,sessionId,manualId,things_present,frame_bytes))
+                executor.submit(self.send_instruction(xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present))
                 return
                 
         except Exception as e:
@@ -424,12 +431,12 @@ class Detections:
     def send_first_instruction(self,sessionId,frame_bytes,manualId,sourceId):
                     # Connect to Kafka producer and send message
         
-        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
-        try:
-            self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
-        except Exception as e:
-            logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-            pass
+        # message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+        # try:
+        #     self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+        # except Exception as e:
+        #     logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+        #     pass
         # Assign task based on detections
         data=self.sessionSteps.find_one({"sessionId":sessionId})
         if data==None:
@@ -670,13 +677,13 @@ class Detections:
 
     def send_every_instruction(self,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths):
 
-        print("sending frames and instruction")
-        message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
-        try:
-            self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
-        except Exception as e:
-            print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
-            pass
+        # print("sending frames and instruction")
+        # message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
+        # try:
+        #     self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+        # except Exception as e:
+        #     print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+        #     pass
 
         data=self.sessionSteps.find_one({"sessionId":sessionId})
         if data==None:
@@ -749,7 +756,7 @@ class Detections:
             print(image_paths,object_names)
             if object_names!="No object":
                 self.store_detection(sourceId, object_names, sessionId)
-                saved_detections = self.get_detection(sourceId)
+            saved_detections = self.get_detection(sourceId)
             
             compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
             frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
