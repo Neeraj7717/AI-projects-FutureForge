@@ -348,38 +348,67 @@ class Detections:
                 faiss.normalize_L2(vector)
             
                 # Search the FAISS index
-                index = faiss.read_index("vectordb/vector.index")
-                d, i = index.search(vector, 1)
-                print(i)
-                json_file_path = 'vectordb/images.json'
+                if manualId!="16":
+                    index = faiss.read_index("vectordb/vector.index")
+                    d, i = index.search(vector, 1)
+                    print(i)
+                    json_file_path = 'vectordb/images.json'
 
-                # Load JSON data
-                with open(json_file_path, 'r') as f:
-                    data = json.load(f)
+                    # Load JSON data
+                    with open(json_file_path, 'r') as f:
+                        data = json.load(f)
 
-                images=list(data.keys())
-                # Retrieve image paths from the indices (assuming 'images' is a list of image paths)
-                image_paths = images[i[0][0]]
-            
-                # Retrieve object names from the data dictionary
-                object_names = data[image_paths]
-                response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
-                data = json.loads(response.content.decode("utf-8"))
-                message={
-                        "sessionId": sessionId,
-                        "videoUrl": "",
-                        "audioUrl": data["file_path"],
-                        "contextUrl": image_paths,
-                        "contextType": "img",
-                        "manualId": manualId,
-                        "stepId": 1,
-                        "step": f"The object you picked is {object_names}",
-                        "status": "failed",
-                        "repetition": 0,
-                        "feedback": "",
-                        "feedbackUrl": "",
-                        "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                        "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                    images=list(data.keys())
+                    # Retrieve image paths from the indices (assuming 'images' is a list of image paths)
+                    image_paths = images[i[0][0]]
+                
+                    # Retrieve object names from the data dictionary
+                    object_names = data[image_paths]
+                    response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
+                    data = json.loads(response.content.decode("utf-8"))
+                    message={
+                            "sessionId": sessionId,
+                            "videoUrl": "",
+                            "audioUrl": data["file_path"],
+                            "contextUrl": image_paths,
+                            "contextType": "img",
+                            "manualId": manualId,
+                            "stepId": 1,
+                            "step": f"The object you picked is {object_names}",
+                            "status": "failed",
+                            "repetition": 0,
+                            "feedback": "",
+                            "feedbackUrl": "",
+                            "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                            "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        }
+                else:
+                    index = faiss.read_index("vectordb/orienation_images_vector.index")
+                    d, i = index.search(vector, 1)
+                    print(i)
+                    with open("vectordb/orienation_images_vector.json", 'r') as f:
+                        data = json.load(f)
+
+                    # Access the 'images' array
+                    images_list = data['images']
+
+                    response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is similar to the object shown", "gender": 0})
+                    data = json.loads(response.content.decode("utf-8"))
+                    message={
+                            "sessionId": sessionId,
+                            "videoUrl": "",
+                            "audioUrl": data["file_path"],
+                            "contextUrl": images_list[i],
+                            "contextType": "img",
+                            "manualId": manualId,
+                            "stepId": 1,
+                            "step": f"The object you picked is similar to the object shown",
+                            "status": "failed",
+                            "repetition": 0,
+                            "feedback": "",
+                            "feedbackUrl": "",
+                            "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                            "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
                         }
                 self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 return
