@@ -398,7 +398,7 @@ class Detections:
                             "sessionId": sessionId,
                             "videoUrl": "",
                             "audioUrl": data["file_path"],
-                            "contextUrl": images_list[i],
+                            "contextUrl": images_list[i[0][0]],
                             "contextType": "img",
                             "manualId": manualId,
                             "stepId": 1,
