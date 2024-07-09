@@ -164,12 +164,13 @@ class Detections:
         message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
         try:
             self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
-            print("________________________sending_bounding_boxes_________________________")
+            
         except Exception as e:
             print(f"Error sending message: {str(e)}")
             traceback.print_exc()
             pass
         print({"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        print(f"________________________{config.java_endpoint}_________________________",{"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
         response  = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
         return
         # lag=self.get_lag(sourceId,sessionId)
