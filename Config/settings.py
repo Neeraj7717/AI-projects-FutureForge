@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ACCESS_KEY:str
     SECRET_KEY:str
     context_based_question_answer:str
+    java_endpoint:str
 
     class Config:
         env_file = "./.env"

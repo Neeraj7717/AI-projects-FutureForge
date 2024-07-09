@@ -169,29 +169,32 @@ class Detections:
             print(f"Error sending message: {str(e)}")
             traceback.print_exc()
             pass
-        lag=self.get_lag(sourceId,sessionId)
-        if lag<=0:
+        print({"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        response  = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        return
+        # lag=self.get_lag(sourceId,sessionId)
+        # if lag<=0:
 
-            task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
+        #     task,map = self.assign_task(things_present, sourceId, sessionId,manualId)
 
-            if task is not None:
+        #     if task is not None:
 
-                document = self.monualCollection.find_one({"_id": int(manualId)})
-                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-                task_manager = TaskManager(steps=steps)                
-                print(f"The task number is: {task}") 
-                response = task_manager.get_next_step(sessionId, sourceId, task, manualId, "",things_present,map)
-                logger.debug(f"Response from graph: {response}")
+        #         document = self.monualCollection.find_one({"_id": int(manualId)})
+        #         steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+        #         task_manager = TaskManager(steps=steps)                
+        #         print(f"The task number is: {task}") 
+        #         response = task_manager.get_next_step(sessionId, sourceId, task, manualId, "",things_present,map)
+        #         logger.debug(f"Response from graph: {response}")
 
 
-                if response !=0 and response!=None:
+        #         if response !=0 and response!=None:
 
-                    self.add_lag(sourceId,sessionId,response)
+        #             self.add_lag(sourceId,sessionId,response)
 
-                logger.debug(f"Response from graph: {response}")
-        else:
+        #         logger.debug(f"Response from graph: {response}")
+        # else:
 
-            self.reduce_lag(sourceId,sessionId)
+        #     self.reduce_lag(sourceId,sessionId)
 
     def ekyc_action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
