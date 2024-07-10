@@ -164,12 +164,12 @@ class Detections:
         message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
         try:
             self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
-            print("________________________sending_bounding_boxes_________________________")
         except Exception as e:
             print(f"Error sending message: {str(e)}")
             traceback.print_exc()
             pass
         print({"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        print("________________________sending_bounding_boxes_________________________",config.java_endpoint)
         response  = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
         return
         # lag=self.get_lag(sourceId,sessionId)
@@ -210,14 +210,21 @@ class Detections:
         """
         try:
             # Perform object detection
-            image_bytes = base64.b64decode(file)
-            file = np.frombuffer(image_bytes, dtype=np.uint8)
-            # Decode the numpy array to an image
-            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            
             # if manualId!=str(4):
-            detection_output = self.ekycmodel.predict(source=file, conf=0.25, save=False)   
+            try:
+                header,encoded=file.split(",",1)
+                image_bytes = base64.b64decode(encoded)
+                file = np.frombuffer(image_bytes, dtype=np.uint8)
+                file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+                # cv2.imwrite("1.jpg",file)
+                detection_output = self.ekycmodel.predict(source=file, conf=0.25, save=False)   
+            except Exception as e:
+                print("ERROR",e)
+                traceback.print_exc()
             dic = vars(detection_output[0])
             names = dic["names"]
+            print(names)
             # print(names)
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[name] for name in detected_class.cls]
@@ -271,10 +278,13 @@ class Detections:
         """
         try:
             # Perform object detection
-            image_bytes = base64.b64decode(file)
+            header,encoded=file.split(",",1)
+            image_bytes = base64.b64decode(encoded)
             file = np.frombuffer(image_bytes, dtype=np.uint8)
             # Decode the numpy array to an image
             file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+
+            # cv2.imwrite("1.jpg",file)
             # if manualId!=str(4):
             detection_output = self.model.predict(source=file, conf=0.25, save=False)   
             dic = vars(detection_output[0])
@@ -493,9 +503,9 @@ class Detections:
         """
         try:
             # Perform object detection
-            image_bytes = base64.b64decode(file)
+            header,encoded=file.split(",",1)
+            image_bytes = base64.b64decode(encoded)
             file = np.frombuffer(image_bytes, dtype=np.uint8)
-            # Decode the numpy array to an image
             file = cv2.imdecode(file, cv2.IMREAD_COLOR)
             image=file
             try:
@@ -617,12 +627,10 @@ class Detections:
         """
         try:
             # Perform object detection
-            frame_bytes=file
-            image_bytes = base64.b64decode(file)
+            header,encoded=file.split(",",1)
+            image_bytes = base64.b64decode(encoded)
             file = np.frombuffer(image_bytes, dtype=np.uint8)
-            # Decode the numpy array to an image
             file = cv2.imdecode(file, cv2.IMREAD_COLOR)
-            cv2.imwrite("1.jpg",file)
             # if manualId!=str(4):
             detection_output = self.chairmodel.predict(source=file, conf=0.25, save=False)   
             dic = vars(detection_output[0])
@@ -751,10 +759,9 @@ class Detections:
 
     def get_similar_image_detector(self, file, sourceId, sessionId, manualId):
         try:
-            frame_bytes=file
-            image_bytes = base64.b64decode(file)
+            header,encoded=file.split(",",1)
+            image_bytes = base64.b64decode(encoded)
             file = np.frombuffer(image_bytes, dtype=np.uint8)
-            # Decode the numpy array to an image
             file = cv2.imdecode(file, cv2.IMREAD_COLOR)
             with torch.no_grad():
                 inputs = self.processor(images=file, return_tensors="pt").to(self.device)
