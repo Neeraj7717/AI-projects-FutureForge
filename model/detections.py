@@ -164,6 +164,7 @@ class Detections:
         message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
         try:
             self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
+            
         except Exception as e:
             print(f"Error sending message: {str(e)}")
             traceback.print_exc()
