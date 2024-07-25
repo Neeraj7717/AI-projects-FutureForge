@@ -288,6 +288,44 @@ async def similar_image_detector(file, sourceId, sessionId, manualId):
     await detector.get_similar_image_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
 
 
+@app.post("/system_monitor")
+async def system_monitor(input_data: Input):
+    """
+    Endpoint for performing detections.
+
+    Args:
+        input_data (Input): Input data containing file path, sourceId, sessionId, and manualId.
+
+    Returns:
+        dict: Dictionary containing the output of detection.
+    """
+    # Extract input data
+    a=datetime.datetime.now()
+    file = input_data.file
+    sourceId = input_data.sourceId
+    sessionId = input_data.sessionId
+    manualId = input_data.manualId
+    
+    # Perform hand detection
+    asyncio.create_task(system_monitor_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
+
+    # return {"output": []}
+
+async def system_monitor_detector(file, sourceId, sessionId, manualId):
+    """
+    Asynchronous function to perform hand detection.
+    
+    Args:
+        file (str): File path.
+        sourceId (str): Source ID.
+        sessionId (str): Session ID.
+        manualId (str): Manual ID.
+    """
+    
+    # Perform hand detection (Replace with your actual implementation)
+    await asyncio.sleep(0)  # Simulate some asynchronous task
+    await detector.system_monitor_detection(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+
 
 # Run the FastAPI application
 if __name__ == "__main__":

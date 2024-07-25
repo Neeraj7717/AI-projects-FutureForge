@@ -12,6 +12,7 @@ import requests
 import pymongo
 import torch
 import yaml
+import easyocr
 from kafka import KafkaProducer
 from ultralytics import YOLO
 from utils.cv2Operations import cv2_operations
@@ -38,6 +39,7 @@ logger = logging.getLogger()
 console_handler = logging.StreamHandler()
 logger.addHandler(console_handler)
  
+reader = easyocr.Reader(['en'])
 
  
 class Detections:
@@ -264,6 +266,12 @@ class Detections:
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
+        
+
+
+
+
+    
 
     def action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
@@ -757,6 +765,83 @@ class Detections:
             self.remove_detection(sourceId) 
         elif len(set(saved_detections)) > 1:
             self.remove_detection(sourceId) 
+
+    def send_continues_system_updates(self,sessionId,manualId,result_apps):
+        if len(result_apps)==0:
+            text_message="We are good to go everything is working fine"
+        else:
+            apps_list=",".join(result_apps)
+            first_app=result_apps[0]
+            text_message=f"{apps_list} are taking more memory please close those and try again." if len(result_apps)>1 else f"{first_app} is taking more memory please close it and try again."
+        response  = requests.post(config.t2v_endpoint, json={"text" : text_message, "gender": 0})
+        data = json.loads(response.content.decode("utf-8"))
+        message={
+                "sessionId": sessionId,
+                "videoUrl": "",
+                "audioUrl": data["file_path"],
+                "contextUrl": "",
+                "contextType": "emt",
+                "manualId": manualId,
+                "stepId": 1,
+                "step": text_message,
+                "status": "failed",
+                "repetition": 0,
+                "feedback": "",
+                "feedbackUrl": "",
+                "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                }
+        self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+
+    def system_monitor_detection(self, file, sourceId, sessionId, manualId):
+        try:
+            header,encoded=file.split(",",1)
+            image_bytes = base64.b64decode(encoded)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            output = reader.readtext(file)
+
+            # Extract relevant information
+            result1 = [output[i][1] for i in range(len(output))]
+            print(result1)
+            apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","musqlworkbench","Music"]
+            app = ""
+            memory_usage = ""
+            result_apps=[]
+            for i in range(len(result1)):
+                if result1[i].lower() in apps:
+                    app = result1[i]
+                elif app != "":
+                    if result1[i] == "MB":
+                        if "." in result1[i-1]:
+                            if int(result1[i].split(".")[0])>400:
+                                result_apps.append(app)
+                        else:
+                            if int(result1[i-1].split(" ")[0])>400:
+                                result_apps.append(app)
+                            
+                        app=""
+                    if result1[i][-2:]=="MB":
+                        if "." in result1[i]:
+                            if int(result1[i].split(".")[0])>400:
+                                result_apps.append(app)
+                        else:
+                            if int(result1[i].split(" ")[0])>400:
+                                result_apps.append(app)
+                        app=""
+                    if result1[i]=="GB" or result1[i][-2:]=="GB":
+                        result_apps.append(app)
+                        app=""
+            result_apps=list(set(result_apps))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                # Assign task based on detections
+                executor.submit(self.send_continues_system_updates,sessionId,manualId,result_apps)
+                return
+        except Exception as e:
+            print(e)
+
+
 
     def get_similar_image_detector(self, file, sourceId, sessionId, manualId):
         try:
