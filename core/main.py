@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import datetime
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware  # Import CORSMiddleware
 from model.detections import Detections
 import uvicorn
 from pydantic import BaseModel
@@ -10,6 +11,15 @@ from Config.settings import Settings
 
 # Create FastAPI app instance
 app = FastAPI()
+
+# Add CORS middleware to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Initialize detection model
 detector = Detections()

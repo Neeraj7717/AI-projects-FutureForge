@@ -140,9 +140,9 @@ class Detections:
             data = {"lag": time, "sessionId": sessionId}
             self.lagcollection.insert_one(data)
 
-    def get_detection(self, sourceId):
+    def get_detection(self, sessionId):
         """Retrieve tasks from MongoDB."""
-        data = self.collection.find_one({"sourceId": sourceId})
+        data = self.collection.find_one({"sessionId": sessionId})
         if data:
             return data["tasks"]
         else:
@@ -155,9 +155,9 @@ class Detections:
         else:
             data = self.lagcollection.insert_one({"sessionId": sessionId,"lag":0})
             return 0
-    def remove_detection(self, sourceId):
+    def remove_detection(self, sessionId):
         """Remove detections from MongoDB."""
-        self.collection.delete_one({"sourceId": sourceId})
+        self.collection.delete_one({"sessionId": sessionId})
     
     def send_instruction(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present):
         xyxy=xyxy.tolist()
@@ -733,39 +733,41 @@ class Detections:
         # except Exception as e:
         #     print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
         #     pass
+        try:
+            data=self.sessionSteps.find_one({"sessionId":sessionId})
+            if data==None:
+                document = self.monualCollection.find_one({"_id": int(manualId)})
+                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+                task_manager = TaskManager(steps=steps)
 
-        data=self.sessionSteps.find_one({"sessionId":sessionId})
-        if data==None:
-            document = self.monualCollection.find_one({"_id": int(manualId)})
-            steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-            task_manager = TaskManager(steps=steps)
+                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
 
-            response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
-
-        if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
-            response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
-            data = json.loads(response.content.decode("utf-8"))
-            message={
-                    "sessionId": sessionId,
-                    "videoUrl": "",
-                    "audioUrl": data["file_path"],
-                    "contextUrl": image_paths,
-                    "contextType": "img",
-                    "manualId": manualId,
-                    "stepId": 1,
-                    "step": f"The object you picked is {object_names}",
-                    "status": "failed",
-                    "repetition": 0,
-                    "feedback": "",
-                    "feedbackUrl": "",
-                    "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                    "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                    }
-            self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
-            self.remove_detection(sourceId) 
-        elif len(set(saved_detections)) > 1:
-            self.remove_detection(sourceId) 
-
+            if len(saved_detections) >= config.continuity and len(set(saved_detections)) == 1:
+                response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
+                data = json.loads(response.content.decode("utf-8"))
+                message={
+                        "sessionId": sessionId,
+                        "videoUrl": "",
+                        "audioUrl": data["file_path"],
+                        "contextUrl": image_paths,
+                        "contextType": "img",
+                        "manualId": manualId,
+                        "stepId": 1,
+                        "step": f"The object you picked is {object_names}",
+                        "status": "failed",
+                        "repetition": 0,
+                        "feedback": "",
+                        "feedbackUrl": "",
+                        "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+                        }
+                print(message)
+                self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+                self.remove_detection(sessionId) 
+            elif len(set(saved_detections)) > 1:
+                self.remove_detection(sessionId) 
+        except Exception as e:
+            print(e)
     def send_continues_system_updates(self,sessionId,manualId,result_apps):
         if len(result_apps)==0:
             text_message="We are good to go everything is working fine"
@@ -773,28 +775,36 @@ class Detections:
             apps_list=",".join(result_apps)
             first_app=result_apps[0]
             text_message=f"{apps_list} are taking more memory please close those and try again." if len(result_apps)>1 else f"{first_app} is taking more memory please close it and try again."
-        response  = requests.post(config.t2v_endpoint, json={"text" : text_message, "gender": 0})
-        data = json.loads(response.content.decode("utf-8"))
-        message={
-                "sessionId": sessionId,
-                "videoUrl": "",
-                "audioUrl": data["file_path"],
-                "contextUrl": "",
-                "contextType": "emt",
-                "manualId": manualId,
-                "stepId": 1,
-                "step": text_message,
-                "status": "failed",
-                "repetition": 0,
-                "feedback": "",
-                "feedbackUrl": "",
-                "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
-                }
-        self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
+        # response  = requests.post(config.t2v_endpoint, json={"text" : text_message, "gender": 0})
+        # data = json.loads(response.content.decode("utf-8"))
+        # message={
+        #         "sessionId": sessionId,
+        #         "videoUrl": "",
+        #         "audioUrl": data["file_path"],
+        #         "contextUrl": "",
+        #         "contextType": "emt",
+        #         "manualId": manualId,
+        #         "stepId": 1,
+        #         "step": text_message,
+        #         "status": "failed",
+        #         "repetition": 0,
+        #         "feedback": "",
+        #         "feedbackUrl": "",
+        #         "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+        #         "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+        #         }
+        agent_message={"responseMsg":text_message,"responseTo":"USER"}
+        self.producer.send("frame-output-topic",key=sessionId.encode("utf-8"),value=json.dumps(agent_message).encode("utf-8"))
 
     def system_monitor_detection(self, file, sourceId, sessionId, manualId):
         try:
+            print(sourceId, sessionId, manualId)
+            self.store_detection("123", 0, sessionId)
+            print(self.get_detection(sessionId),"_____________________continuety")
+            if len(self.get_detection(sessionId))<=3:
+                return
+            
+            self.remove_detection(sessionId) 
             header,encoded=file.split(",",1)
             image_bytes = base64.b64decode(encoded)
             file = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -881,7 +891,7 @@ class Detections:
             print(image_paths,object_names)
             if object_names!="No object":
                 self.store_detection(sourceId, object_names, sessionId)
-            saved_detections = self.get_detection(sourceId)
+            saved_detections = self.get_detection(sessionId)
             
             compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
             frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
@@ -921,15 +931,15 @@ class Detections:
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
             # Retrieve detections from MongoDB
-            saved_detections = self.get_detection(sourceId)
+            saved_detections = self.get_detection(sessionId)
             if saved_detections:
                 logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
  
             if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
-                self.remove_detection(sourceId)
+                self.remove_detection(sessionId)
                 return task,map
             elif len(set(saved_detections)) > 1:
-                self.remove_detection(sourceId)
+                self.remove_detection(sessionId)
                 return None
  
         except Exception as e:
@@ -963,3 +973,58 @@ class Detections:
         except Exception as e:
             logger.error(f"Error occurred: {e}")
             return e
+
+
+    def analyse_doc(self, file, sourceId, sessionId, manualId):
+        try:
+            self.store_detection(sourceId, 0, sessionId)
+            if len(self.get_detection(sessionId))<=3:
+                self.remove_detection(sessionId) 
+                return
+            header,encoded=file.split(",",1)
+            image_bytes = base64.b64decode(encoded)
+            file = np.frombuffer(image_bytes, dtype=np.uint8)
+            file = cv2.imdecode(file, cv2.IMREAD_COLOR)
+            output = reader.readtext(file)
+
+            # Extract relevant information
+            result1 = [output[i][1] for i in range(len(output))]
+            print(result1)
+            apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","musqlworkbench","Music"]
+            app = ""
+            memory_usage = ""
+            result_apps=[]
+            for i in range(len(result1)):
+                if result1[i].lower() in apps:
+                    app = result1[i]
+                elif app != "":
+                    if result1[i] == "MB":
+                        if "." in result1[i-1]:
+                            if int(result1[i].split(".")[0])>400:
+                                result_apps.append(app)
+                        else:
+                            if int(result1[i-1].split(" ")[0])>400:
+                                result_apps.append(app)
+                            
+                        app=""
+                    if result1[i][-2:]=="MB":
+                        if "." in result1[i]:
+                            if int(result1[i].split(".")[0])>400:
+                                result_apps.append(app)
+                        else:
+                            if int(result1[i].split(" ")[0])>400:
+                                result_apps.append(app)
+                        app=""
+                    if result1[i]=="GB" or result1[i][-2:]=="GB":
+                        result_apps.append(app)
+                        app=""
+            result_apps=list(set(result_apps))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                # Assign task based on detections
+                executor.submit(self.send_continues_system_updates,sessionId,manualId,result_apps)
+                return
+        except Exception as e:
+            print(e)
+
+
