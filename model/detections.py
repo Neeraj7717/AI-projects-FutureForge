@@ -801,10 +801,11 @@ class Detections:
             print(sourceId, sessionId, manualId)
             self.store_detection("123", 0, sessionId)
             print(self.get_detection(sessionId),"_____________________continuety")
-            if len(self.get_detection(sessionId))<=3:
+            if len(self.get_detection(sessionId))>3:
+                self.remove_detection(sessionId) 
                 return
-            
-            self.remove_detection(sessionId) 
+            if len(self.get_detection(sessionId))!=1:
+                return
             header,encoded=file.split(",",1)
             image_bytes = base64.b64decode(encoded)
             file = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -814,7 +815,7 @@ class Detections:
             # Extract relevant information
             result1 = [output[i][1] for i in range(len(output))]
             print(result1)
-            apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","musqlworkbench","Music"]
+            apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","mysqlworkbench","Music"]
             app = ""
             memory_usage = ""
             result_apps=[]
