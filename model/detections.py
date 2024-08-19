@@ -770,7 +770,7 @@ class Detections:
             print(e)
     def send_continues_system_updates(self,sessionId,manualId,result_apps):
         if len(result_apps)==0:
-            text_message="We are good to go everything is working fine"
+            text_message="We are good to go everything is working fine, you can turn off your screenshare."
         else:
             apps_list=",".join(result_apps)
             first_app=result_apps[0]
