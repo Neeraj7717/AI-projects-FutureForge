@@ -768,8 +768,10 @@ class Detections:
                 self.remove_detection(sessionId) 
         except Exception as e:
             print(e)
-    def send_continues_system_updates(self,sessionId,manualId,result_apps):
-        if len(result_apps)==0:
+    def send_continues_system_updates(self,sessionId,manualId,result_apps,error_message):
+        if error_message=="error":
+            text_message="I think you are not sharing correct screen please check and share your system monitor screen"
+        elif len(result_apps)==0:
             text_message="We are good to go everything is working fine, you can turn off your screenshare."
         else:
             apps_list=",".join(result_apps)
@@ -818,11 +820,15 @@ class Detections:
             apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","mysqlworkbench","Music"]
             app = ""
             memory_usage = ""
+            error_message="error"
             result_apps=[]
             for i in range(len(result1)):
-                if result1[i].lower() in apps:
-                    app = result1[i]
-                elif app != "":
+                for j in apps:
+                    if j in result1[i].lower():
+                        app=result1[i]
+                        error_message="true"
+                        break
+                if app != "":
                     if result1[i] == "MB":
                         if "." in result1[i-1]:
                             if int(result1[i].split(".")[0])>400:
@@ -844,10 +850,9 @@ class Detections:
                         result_apps.append(app)
                         app=""
             result_apps=list(set(result_apps))
-
             with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
                 # Assign task based on detections
-                executor.submit(self.send_continues_system_updates,sessionId,manualId,result_apps)
+                executor.submit(self.send_continues_system_updates,sessionId,manualId,result_apps,error_message)
                 return
         except Exception as e:
             print(e)
