@@ -774,7 +774,7 @@ class Detections:
         elif len(result_apps)==0:
             text_message="We are good to go everything is working fine, you can turn off your screenshare."
         else:
-            apps_list=",".join(result_apps)
+            apps_list=", ".join(result_apps)
             first_app=result_apps[0]
             text_message=f"{apps_list} are taking more memory please close those and try again." if len(result_apps)>1 else f"{first_app} is taking more memory please close it and try again."
         # response  = requests.post(config.t2v_endpoint, json={"text" : text_message, "gender": 0})
