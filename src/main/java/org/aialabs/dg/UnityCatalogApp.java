@@ -1,21 +1,25 @@
 package org.aialabs.dg;
 
-import jakarta.annotation.PostConstruct;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
+
+import org.aialabs.dg.CatalogCreation.UnityCatalogManager;
 import org.aialabs.dg.config.ApplicationProperties;
 import org.aialabs.dg.config.CRLFLogConverter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.liquibase.LiquibaseProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.env.Environment;
+
+import jakarta.annotation.PostConstruct;
 import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 
@@ -23,12 +27,49 @@ import tech.jhipster.config.JHipsterConstants;
 @EnableConfigurationProperties({ LiquibaseProperties.class, ApplicationProperties.class })
 public class UnityCatalogApp {
 
+    @Value("${unity.catalog.name}")
+    private String catalogName;
+
+    @Value("${unity.catalog.schema.name}")
+    private String schemaName;
+
+    @Value("${unity.catalog.table.name}")
+    private String tableName;
+
     private static final Logger log = LoggerFactory.getLogger(UnityCatalogApp.class);
 
     private final Environment env;
 
-    public UnityCatalogApp(Environment env) {
+    private final UnityCatalogManager unityCatalogManager;
+
+    public UnityCatalogApp(Environment env, UnityCatalogManager unityCatalogManager) {
         this.env = env;
+        this.unityCatalogManager = unityCatalogManager;
+    }
+
+
+    void runCatalogManager() {
+        // String catalogName = "aialabs";
+        // String schemaName = "dg_dev";
+        // String tableName = "data_table";
+
+        try {
+            unityCatalogManager.createCatalog(catalogName);
+        } catch (Exception e) {
+            System.out.println("Catalog already exists or failed to create: " + e.getMessage());
+        }
+
+        try {
+            unityCatalogManager.createSchema(catalogName, schemaName);
+        } catch (Exception e) {
+            System.out.println("Schema already exists or failed to create: " + e.getMessage());
+        }
+
+        try {
+            unityCatalogManager.createTable(catalogName, schemaName, tableName);
+        } catch (Exception e) {
+            System.out.println("Table already exists or failed to create: " + e.getMessage());
+        }
     }
 
     /**
@@ -57,6 +98,7 @@ public class UnityCatalogApp {
                 "You have misconfigured your application! It should not " + "run with both the 'dev' and 'cloud' profiles at the same time."
             );
         }
+        runCatalogManager();
     }
 
     /**

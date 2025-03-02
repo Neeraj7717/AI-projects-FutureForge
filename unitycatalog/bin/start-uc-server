@@ -1,0 +1,92 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+TARBALL_JAR_DIR="$ROOT_DIR/jars"
+SERVER_CLASS_FILE="$ROOT_DIR/server/src/main/java/io/unitycatalog/server/UnityCatalogServer.java"
+
+generate_jar() {
+  local GENERATE_JAR_COMMAND="$ROOT_DIR/build/sbt -info clean package"
+  echo "Running SBT to generate Server JAR: $GENERATE_JAR_COMMAND"
+  $GENERATE_JAR_COMMAND || exit
+}
+
+# Function to find the location of UnityCatalogServer.class
+find_main_class_location() {
+  SERVER_TARGET_DIR="$ROOT_DIR/server/target"
+  
+  # Check in classes/
+  if [ -f "$SERVER_TARGET_DIR/classes/io/unitycatalog/server/UnityCatalogServer.class" ]; then
+    echo "$SERVER_TARGET_DIR/classes"
+    return
+  fi
+  
+  # Check in JARs
+  SERVER_JAR=$(find "$SERVER_TARGET_DIR" -name "unitycatalog-server*.jar" | head -n 1)
+  if [ -n "$SERVER_JAR" ] && jar tf "$SERVER_JAR" | grep -q "io/unitycatalog/server/UnityCatalogServer.class"; then
+    echo "$SERVER_JAR"
+    return
+  fi
+  
+  echo "Error: Could not find UnityCatalogServer.class in $SERVER_TARGET_DIR/classes or JARs" >&2
+  exit 1
+}
+
+run_uc_server_java_command() {
+  # Get the existing classpath from the file (if it exists)
+  CLASSPATH_FILE="$1"
+  if [ -f "$CLASSPATH_FILE" ]; then
+    BASE_CLASSPATH=$(cat "$CLASSPATH_FILE" | sed 's|\\|/|g' | sed 's|C:/|/mnt/c/|g' | tr ';' ':')
+  else
+    BASE_CLASSPATH=""
+  fi
+  shift
+
+  # Dynamically find the main class location
+  MAIN_CLASS_LOCATION=$(find_main_class_location)
+
+  # Combine the main class location with the base classpath
+  if [ -n "$BASE_CLASSPATH" ]; then
+    CLASS_PATH="$MAIN_CLASS_LOCATION:$BASE_CLASSPATH"
+  else
+    CLASS_PATH="$MAIN_CLASS_LOCATION"
+  fi
+
+  # Run the server without printing classpath details
+  /usr/bin/java -cp "$CLASS_PATH" io.unitycatalog.server.UnityCatalogServer "$@" 2>&1 || exit
+}
+
+run_in_source_code() {
+  SERVER_TARGET_DIR="$ROOT_DIR/server/target"
+  SERVER_JAR=$(find "$SERVER_TARGET_DIR" -name "unitycatalog-server*.jar" | head -n 1)
+
+  if [ -z "$SERVER_JAR" ] && [ ! -d "$SERVER_TARGET_DIR/classes" ]; then
+      echo "No compiled output found in $SERVER_TARGET_DIR."
+      generate_jar
+  fi
+
+  SERVER_CLASSPATH_FILE="$SERVER_TARGET_DIR/classpath"
+  if [ ! -f "$SERVER_CLASSPATH_FILE" ]; then
+      echo "No classpath file found at '$SERVER_CLASSPATH_FILE'. Using dynamic analysis only."
+  fi
+
+  run_uc_server_java_command "$SERVER_CLASSPATH_FILE" "$@"
+}
+
+run_in_tarball() {
+  SERVER_CLASSPATH_FILE=$(find "$TARBALL_JAR_DIR" -name "classpath" | head -n 1)
+  if [ -z "$SERVER_CLASSPATH_FILE" ]; then
+    echo "No classpath file found in $TARBALL_JAR_DIR."
+    exit 1
+  fi
+  run_uc_server_java_command "$SERVER_CLASSPATH_FILE" "$@"
+}
+
+if [ -d "$TARBALL_JAR_DIR" ]; then
+  run_in_tarball "$@"
+elif [ -f "$SERVER_CLASS_FILE" ]; then
+  run_in_source_code "$@"
+else
+  echo "Script running neither in source code nor in tarball"
+fi
