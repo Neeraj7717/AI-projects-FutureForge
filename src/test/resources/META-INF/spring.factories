@@ -1,0 +1,4 @@
+org.springframework.test.context.ContextCustomizerFactory = org.aialabs.dg.\
+    config.TestContainersSpringContextCustomizerFactory,org.aialabs.dg.config.\
+    SqlTestContainersSpringContextCustomizerFactory,org.aialabs.dg.config.\
+    KafkaTestContainersSpringContextCustomizerFactory
