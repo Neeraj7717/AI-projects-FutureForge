@@ -8,6 +8,6 @@ services:
     #  - "8079:8079"
     network_mode: host
     env_file:
-      - .env
+      - ./env-config/eizen-via-api.txt
     volumes:
-      - ./checkpoints:/usr/app/checkpoints
+      - "{DATA_PATH}:/usr/app/checkpoints"
