@@ -82,7 +82,6 @@ class TaskManager:
         self.update_step(sessionId, 1)
  
     def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes,things_present,data):
-        print("get_next_step")
         manual = self.mongodb.get_document_by_id(document_id=int(manualId))
         current_step = self.get_current_step(sessionId, sourceId)
         total_steps = len(self.steps)
@@ -310,9 +309,9 @@ class TaskManager:
                                 
                             if Text=="You are holding nothing and you should hold nothing.":
                                 Text="Ensure you are having good lighting."
-                        print("id",manual["_id"],type(manual["_id"]))
+                                
                         if manual["_id"] == 19:
-                            print("In 19 if condition")
+
                             if not things_present:
                                 Text = "I am unable to see you. It might be dark, something could be blocking the camera, or you may not be in front of it. Please check and try again."
                             elif "rightHandRaised" in true_items and "leftHandRaised" in things_present:
@@ -328,13 +327,10 @@ class TaskManager:
                             elif "leftHandRaised" in true_items:
                                 Text = "Please raise your left hand."
 
-
-                            print(things_present,"-------------", true_items,"-------------",items_text, "-------------", true_items_text)
                         print(f"\n\n{Text}\n\n")    
                         response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
                         data = json.loads(response.content.decode("utf-8"))
                         message["audioUrl"]= data["file_path"]
-                        message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
                         if manual["_id"]== 13:
                             message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
                         message["step"]=Text

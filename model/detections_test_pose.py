@@ -26,7 +26,6 @@ from instruction.instructions_llava import LlavaInference
 import cv2
 import concurrent.futures
 from s3utils import generaloperations
-from utils.llmOperations import QuestionAnswerModel
 from transformers import AutoImageProcessor, AutoModel
 import time
 import mediapipe as mp
@@ -170,11 +169,11 @@ class Detections:
         """Remove detections from MongoDB."""
         self.collection.delete_one({"sessionId": sessionId})
     
-    def send_instruction(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present):
-        xyxy=xyxy.tolist()
-        print(type(xyxy))
+    def send_instruction(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present,keypoints=[]):
+        xyxy = xyxy.tolist() if isinstance(xyxy, np.ndarray) else []
         key_component=sessionId.encode('utf-8') 
-        message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
+        message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height],"keypoints":keypoints}
+        print(message)
         try:
             self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
             
@@ -184,7 +183,8 @@ class Detections:
             pass
         print({"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
         print("________________________sending_bounding_boxes_________________________",config.java_endpoint)
-        response  = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        response  = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present},timeout=1)
+        print("Message Sent from instruction")
         return
         # lag=self.get_lag(sourceId,sessionId)
         # if lag<=0:
@@ -379,16 +379,17 @@ class Detections:
                 things_present.append("personPresent")
                 hand_status, keypoint_data = self.detect_raised_hands(results.pose_landmarks, frame.shape)
                 things_present.append(hand_status)
-            print(things_present)
+
             # Generate output image with annotations
-            annotated_image = self.draw_annotations(frame, results.pose_landmarks)
+            annotated_image = self.draw_annotations(frame, results.pose_landmarks, sourceId, sessionId, manualId
+                )
 
             # Save the debug image
             debug_path = "pose_detection_debug.jpg"
             cv2.imwrite(debug_path, annotated_image)
 
             print(f"Debug image saved to: {debug_path}")
-            print(things_present)
+
 
             lag = self.get_lag(sourceId, sessionId)
             if lag <= 0:
@@ -447,16 +448,21 @@ class Detections:
 
         return hand_status, keypoint_data
 
-    def draw_annotations(self, image, landmarks):
+    def draw_annotations(self, image, landmarks, sourceId, sessionId, manualId):
         if not landmarks:
             return image
-
-        # Draw keypoints
+        landmarks_points = []
+        new_height, new_width = image.shape[:2]
+        # Draw keypoint
         for landmark in landmarks.landmark:
             x = int(landmark.x * image.shape[1])
             y = int(landmark.y * image.shape[0])
+            landmarks_points.append([x, y])
             cv2.circle(image, (x, y), 5, (0, 255, 0), -1)
 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+            # Assign task based on detections
+            executor.submit(self.send_instruction([],new_width,new_height,sourceId,sessionId,manualId,[],landmarks_points))
         return image
 
 
@@ -1046,62 +1052,43 @@ class Detections:
             
             # Load the YAML data from the file
             data=self.sessionSteps.find_one({"sessionId":sessionId})
-            print(data)
             manual=self.monualCollection.find_one({"_id":int(manualId)})
-            print(manual)
-            print(things_present, sourceId, sessionId,manualId)
             map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
             if data==None:
                 return 0,map
             # Define a function to create the mapping for a given source ID
-
             # Example usage:
               # Change this to the desired source ID
             map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
-            print(map)
-
 
             things_present=list(set(things_present))
-            print(things_present)
-
 
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
 
             # Converting the filter object to a list and getting the first item
             task = next(matching_keys, -1)
-            for i in matching_keys:
-                print(i)
-            print(f"======{things_present}========{matching_keys}=================={task}==========")
+
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
             # Retrieve detections from MongoDB
             saved_detections = self.get_detection(sessionId)
-            print("1*"*10)
+
 
             if saved_detections:
                 logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
-            print("2*"*10)
-            print(saved_detections,"-------------", config.continuity,"-------------",len(set(saved_detections)),sessionId)
+
 
             if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
-                print("in if cndition")
                 self.remove_detection(sessionId)
-                print("3*"*10)
-
                 return task, map
             
             elif len(set(saved_detections)) > 1:
-                print("in else cndition")
-
                 self.remove_detection(sessionId)
-                print("5*"*10)
-
                 return None, map
             
             return None, map
  
         except Exception as e:
-            print(e)
             traceback.print_exc()
             logger.error(f"Error occurred: {e}")
             return e
