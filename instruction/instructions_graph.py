@@ -331,9 +331,9 @@ class TaskManager:
 
                             print(things_present,"-------------", true_items,"-------------",items_text, "-------------", true_items_text)
                         print(f"\n\n{Text}\n\n")    
-                        # response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
-                        # data = json.loads(response.content.decode("utf-8"))
-                        # message["audioUrl"]= data["file_path"]
+                        response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
+                        data = json.loads(response.content.decode("utf-8"))
+                        message["audioUrl"]= data["file_path"]
                         message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
                         if manual["_id"]== 13:
                             message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
