@@ -1,13 +1,13 @@
 services:
   via-api:
     build: .
-    image: via-api:latest
-    container_name: via-api
+    image: eizen-via-api_{{BUILD_NUMBER}}
+    container_name: eizen-via-api
     restart: unless-stopped
     #ports:
     #  - "8079:8079"
     network_mode: host
     env_file:
-      - .env
+      - ./env-config/eizen-via-api.txt
     volumes:
-      - ./checkpoints:/usr/app/checkpoints
+      - "{DATA_PATH}:/usr/app/checkpoints"
