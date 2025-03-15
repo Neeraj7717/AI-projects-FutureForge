@@ -7,6 +7,8 @@ from kafka import KafkaProducer
 from Config.settings import Settings
 import json
 import logging
+import traceback
+from utils.pose_analytics import get_final_summary
  
 # Load configurations
 config = Settings()
@@ -118,6 +120,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                 }
+            print(f"insert-1________________________")
             self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
             message["status"]="completed"
             self.mongodb.add_end_time(sessionId, step_details["_id"],message)
@@ -129,12 +132,19 @@ class TaskManager:
             print("c\no\nr\nr\ne\nc\nt")
             if not self.model:
                 self.update_step(sessionId,current_step+2)
-
+                feedback = ""
+                feedbackUrl = ""
                 for step in manual["steps"]:
                     if step["_id"]==current_step:
                         step_details=step
                         break
                 logger.debug(step_details["text"])
+                print(manualId, type(manualId))
+                print(step_details["_id"], type(step_details["_id"]))
+                if int(manualId) == 19 and step_details["_id"]==4:
+                    print("In manualId 19")
+                    feedback, feedbackUrl = get_final_summary(sessionId)
+                    print(feedback, feedbackUrl)
                 message = {
                     "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
@@ -147,8 +157,8 @@ class TaskManager:
                     "contextUrl": step_details["contextUrl"],
                     "contextType":step_details["contextType"],
                     "repetition": 0,
-                    "feedback": "",
-                    "feedbackUrl": "",
+                    "feedback": feedback,
+                    "feedbackUrl": feedbackUrl,
                     "startTime": ""
                     }
                 self.mongodb.add_end_time(sessionId, current_step,message)
@@ -165,8 +175,8 @@ class TaskManager:
                     "contextUrl": step_details["contextUrl"],
                     "contextType":step_details["contextType"],
                     "repetition": 0,
-                    "feedback": "",
-                    "feedbackUrl": "",
+                    "feedback": feedback,
+                    "feedbackUrl": feedbackUrl,
                     "startTime": ""
                 }
                 steps_mongo = {
@@ -177,10 +187,11 @@ class TaskManager:
                     "status": "inProgress",
                     "duration": "",
                     "repetition": 0,
-                    "feedback": "",
+                    "feedback": feedback,
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": ""
+                    "feedbackUrl": feedbackUrl
                 }
+                print(f"insert-2________________________")
                 self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                 message["status"]="completed"
                 self.mongodb.add_end_time(sessionId, step_details["_id"],message)
@@ -224,6 +235,8 @@ class TaskManager:
                         "feedbackUrl": "",
                         "startTime": ""
                     }
+                    print(f"insert-3________________________")
+
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
@@ -278,6 +291,7 @@ class TaskManager:
                     def get_items(step_id, manual_id):
                         return data[step_id]
                     things_present=list(set(things_present))
+                    true_items=get_items(int(current_step),int(manualId))[:]
 
                     if task!=0:
                         if "text_based_model" in things_present:
@@ -306,12 +320,11 @@ class TaskManager:
                                 items_text = format_items(things_present)
                                 true_items_text = format_items(true_items)
                                 Text = f"You are holding {items_text} but you have to hold {true_items_text}."
+
                                 
                             if Text=="You are holding nothing and you should hold nothing.":
-                                Text="Ensure you are having good lighting."
-                                
+                                Text="Ensure you are having good lighting."    
                         if manual["_id"] == 19:
-
                             if not things_present:
                                 Text = "I am unable to see you. It might be dark, something could be blocking the camera, or you may not be in front of it. Please check and try again."
                             elif "rightHandRaised" in true_items and "leftHandRaised" in things_present:
@@ -326,7 +339,7 @@ class TaskManager:
                                 Text = "Please raise your right hand."
                             elif "leftHandRaised" in true_items:
                                 Text = "Please raise your left hand."
-
+                        
                         print(f"\n\n{Text}\n\n")    
                         response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
                         data = json.loads(response.content.decode("utf-8"))
@@ -334,11 +347,14 @@ class TaskManager:
                         if manual["_id"]== 13:
                             message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
                         message["step"]=Text
+                    print(f"insert-4________________________")
+
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                     if task==0:
                         return step_details["time"]
                 except Exception as e:
                     print(e)
+                    traceback.print_exc()
                     return e
                 logger.debug(current_step)
                 return 0
@@ -378,6 +394,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                     }
+                    print(f"insert-5________________________")
 
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                     # self.producer.send(
@@ -446,6 +463,7 @@ class TaskManager:
                     "videoUrl": step_details["url"],
                     "feedbackUrl": ""
                     }
+                    print(f"insert-6________________________")
 
                     self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                     # self.producer.send(
@@ -535,6 +553,7 @@ class TaskManager:
                             "videoUrl": step_details["url"],
                             "feedbackUrl": ""
                         }
+                        print(f"insert-7________________________")
 
                         self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
                         # self.producer.send(

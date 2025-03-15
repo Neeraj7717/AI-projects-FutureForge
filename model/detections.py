@@ -124,6 +124,8 @@ class Detections:
             # Insert a new document with the task as a list
             data = {"lag": 0, "sessionId": sessionId}
             self.lagcollection.insert_one(data)
+
+            
     def add_lag(self, sourceId, sessionId,time):
         """Store or update detections in MongoDB."""
         # Check if the document with the given sourceId already exists

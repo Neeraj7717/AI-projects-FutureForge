@@ -4,6 +4,8 @@ import datetime
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware  # Import CORSMiddleware
 from model.detections_test_pose import Detections
+from model.pose_test import Pose
+from model.gender_model import ProcessFrame
 import uvicorn
 from pydantic import BaseModel
 from typing import Optional
@@ -23,6 +25,8 @@ app.add_middleware(
 
 # Initialize detection model
 detector = Detections()
+pose = Pose()
+gender = ProcessFrame()
 
 # Load configurations from settings
 config = Settings()
@@ -78,13 +82,11 @@ async def detector_action_detector(file, sourceId, sessionId, manualId):
 @app.post("/detect-pose")
 async def detect(input_data: Input):
     """
-    Endpoint for performing detections.
+    Endpoint for performing pose detections.
 
     Args:
         input_data (Input): Input data containing file path, sourceId, sessionId, and manualId.
 
-    Returns:
-        dict: Dictionary containing the output of detection.
     """
     # Extract input data
     a=datetime.datetime.now()
@@ -94,13 +96,13 @@ async def detect(input_data: Input):
     manualId = input_data.manualId
     
     # Perform hand detection
-    asyncio.create_task(detector_pose_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
+    asyncio.create_task(pose_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
 
     # return {"output": []}
 
-async def detector_pose_detector(file, sourceId, sessionId, manualId):
+async def pose_detector(file, sourceId, sessionId, manualId):
     """
-    Asynchronous function to perform hand detection.
+    Asynchronous function to perform pose detection.
     
     Args:
         file (str): File path.
@@ -111,7 +113,43 @@ async def detector_pose_detector(file, sourceId, sessionId, manualId):
     
     # Perform hand detection (Replace with your actual implementation)
     await asyncio.sleep(0)  # Simulate some asynchronous task
-    await detector.pose_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+    await pose.pose_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+
+@app.post("/detect-gender")
+async def detect(input_data: Input):
+    """
+    Endpoint for performing gender detections.
+
+    Args:
+        input_data (Input): Input data containing file path, sourceId, sessionId, and manualId.
+
+    """
+    # Extract input data
+    a=datetime.datetime.now()
+    file = input_data.file
+    sourceId = input_data.sourceId
+    sessionId = input_data.sessionId
+    manualId = input_data.manualId
+    
+    # Perform hand detection
+    asyncio.create_task(gender_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
+
+    # return {"output": []}
+
+async def gender_detector(file, sourceId, sessionId, manualId):
+    """
+    Asynchronous function to perform gender detection.
+    
+    Args:
+        file (str): File path.
+        sourceId (str): Source ID.
+        sessionId (str): Session ID.
+        manualId (str): Manual ID.
+    """
+    
+    # Perform hand detection (Replace with your actual implementation)
+    await asyncio.sleep(0)  # Simulate some asynchronous task
+    await gender.gender_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
     
 @app.post("/ekyc_detect")
 async def ekyc_detect(input_data: Input):

@@ -15,20 +15,22 @@ import pymongo
 import torch
 import yaml
 import easyocr
-from kafka import KafkaProducer
-from ultralytics import YOLO
-from utils.cv2Operations import cv2_operations
-from Config.settings import Settings
-from utils.directoryOperations import directory_operations
-from instruction.instructions_graph import TaskManager
-from utils.api_client import APIClient
-from instruction.instructions_llava import LlavaInference
 import cv2
-import concurrent.futures
-from s3utils import generaloperations
-from transformers import AutoImageProcessor, AutoModel
 import time
 import mediapipe as mp
+import concurrent.futures
+from kafka import KafkaProducer
+from ultralytics import YOLO
+from Config.settings import Settings
+from utils.cv2Operations import cv2_operations
+from utils.directoryOperations import directory_operations
+from utils.api_client import APIClient
+from utils.pose_analytics import analyze_live_squat
+from instruction.instructions_graph import TaskManager
+from instruction.instructions_llava import LlavaInference
+from s3utils import generaloperations
+from transformers import AutoImageProcessor, AutoModel
+
 pose = mp.solutions.pose
 
 # Load configurations from settings
@@ -70,6 +72,7 @@ class Detections:
         self.db = self.client[config.stateless_db]  # Use or create a database
         self.collection = self.db[config.stateless_collection_detections]
         self.lagcollection = self.db["lag"]
+        self.stepcollection = self.db["state"]
         self.monualCollection=self.db1["manual"]
         self.sessionSteps=self.db1["sessionSteps"]
         self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
@@ -134,10 +137,11 @@ class Detections:
             # Insert a new document with the task as a list
             data = {"lag": 0, "sessionId": sessionId}
             self.lagcollection.insert_one(data)
-    def add_lag(self, sourceId, sessionId,time):
+    def add_lag(self, sourceId, sessionId, time):
         """Store or update detections in MongoDB."""
         # Check if the document with the given sourceId already exists
         existing_document = self.lagcollection.find_one({"sessionId": sessionId})
+        print(time,type(time))
         if existing_document:
             # Check if the sessionId matches the existing one
 
@@ -209,6 +213,25 @@ class Detections:
         # else:
 
         #     self.reduce_lag(sourceId,sessionId)
+
+
+    def send_instruction_pose(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present,keypoints=[]):
+        xyxy = xyxy.tolist() if isinstance(xyxy, np.ndarray) else []
+        key_component=sessionId.encode('utf-8') 
+        message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height],"keyPoints":keypoints}
+        print(message)
+        try:
+            self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
+            
+        except Exception as e:
+            print(f"Error sending message: {str(e)}")
+            traceback.print_exc()
+            pass
+        print({"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        print("Message Sent from instruction")
+        return
+
+
 
     def ekyc_action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
@@ -347,26 +370,27 @@ class Detections:
             return e
 
 
-
-
-
-
     def pose_detector(self, file, sourceId, sessionId, manualId):
         try:
-            print("Starting pose detection...")
-
+            start_time = time.time()
+            print("Starting pose --------------detection...")
+            
             # Decode base64 image
+            decode_start = time.time()
             header, encoded = file.split(",", 1)
             image_bytes = base64.b64decode(encoded)
             np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
+            if np_arr is None or np_arr.size == 0:
+                print("Empty image buffer")
+                return None
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            print(f"Image decoded, shape: {frame.shape}")
+            decode_time = time.time() - decode_start
+            print(f"Image decoded in {decode_time:.3f}s, shape: {frame.shape}")
 
             # Convert image to RGB for MediaPipe
             rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # Perform pose detection
             results = self.pose_model.process(rgb_image)
+
 
             # Check if person is present
             person_present = results.pose_landmarks is not None
@@ -380,22 +404,39 @@ class Detections:
                 hand_status, keypoint_data = self.detect_raised_hands(results.pose_landmarks, frame.shape)
                 things_present.append(hand_status)
 
-            # Generate output image with annotations
-            annotated_image = self.draw_annotations(frame, results.pose_landmarks, sourceId, sessionId, manualId
-                )
+            # Generate output image with annotation
+            annotated_image = self.draw_annotations(frame, results.pose_landmarks, sourceId, sessionId, manualId)
+
+            squat_start = time.time()
+            try:
+                print("---------------------------------In document Getting")
+                document = self.stepcollection.find_one({"sessionId": sessionId})
+                print(document)
+                if document:
+                    # Check if 'current_step' field exists; if not, add it with a value of 1
+                    if 'current_step' in document:
+                        print(document['current_step'],"----------------------------------------------------------current step")
+                        if document['current_step'] > 2 and document['current_step'] < 6:
+                            squats_result = analyze_live_squat(sessionId, frame)
+                            squat_time = time.time() - squat_start
+                            print(f"Squat analysis completed in {squat_time:.3f}s")
+                            print(squats_result)
+                            things_present.append(squats_result)
+            except Exception as e:
+                print(e,"--------------------------------------------------------------------------------test Error")
 
             # Save the debug image
             debug_path = "pose_detection_debug.jpg"
             cv2.imwrite(debug_path, annotated_image)
 
-            print(f"Debug image saved to: {debug_path}")
+
 
 
             lag = self.get_lag(sourceId, sessionId)
             if lag <= 0:
-
+                print(things_present)
                 task, map = self.assign_task(things_present, sourceId, sessionId, manualId)
-
+                print(task,"------------------------------Task")
                 if task is not None:
 
                     document = self.monualCollection.find_one({"_id": int(manualId)})
@@ -403,6 +444,7 @@ class Detections:
                     task_manager = TaskManager(steps=steps)
                     print(f"The task number is: {task}")
                     response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame, things_present, map)
+                    print(response,"0----------------------------------------------")
                     print(f"Response from graph: {response}")
 
                     if response != 0 and response is not None:
@@ -411,10 +453,9 @@ class Detections:
                     print(f"Response from graph: {response}")
             else:
                 self.reduce_lag(sourceId, sessionId)
-
-        except Exception as e:
-            print(f"Error occurred: {e}")
-            traceback.print_exc()
+            
+            total_time = time.time() - start_time
+            print(f"Total pose detection pipeline completed in {total_time:.3f}s")
 
 
         except Exception as e:
@@ -448,23 +489,95 @@ class Detections:
 
         return hand_status, keypoint_data
 
+
+
     def draw_annotations(self, image, landmarks, sourceId, sessionId, manualId):
         if not landmarks:
             return image
+        
         landmarks_points = []
+        skeleton_connection_coor = []
         new_height, new_width = image.shape[:2]
-        # Draw keypoint
-        for landmark in landmarks.landmark:
+        
+        # Define connections for full body skeleton
+        skeleton_connections = [
+            # Face
+            (pose.PoseLandmark.NOSE, pose.PoseLandmark.RIGHT_EYE_INNER),
+            (pose.PoseLandmark.RIGHT_EYE_INNER, pose.PoseLandmark.RIGHT_EYE),
+            (pose.PoseLandmark.RIGHT_EYE, pose.PoseLandmark.RIGHT_EYE_OUTER),
+            (pose.PoseLandmark.NOSE, pose.PoseLandmark.LEFT_EYE_INNER),
+            (pose.PoseLandmark.LEFT_EYE_INNER, pose.PoseLandmark.LEFT_EYE),
+            (pose.PoseLandmark.LEFT_EYE, pose.PoseLandmark.LEFT_EYE_OUTER),
+            (pose.PoseLandmark.RIGHT_EYE_OUTER, pose.PoseLandmark.RIGHT_EAR),
+            (pose.PoseLandmark.LEFT_EYE_OUTER, pose.PoseLandmark.LEFT_EAR),
+            (pose.PoseLandmark.MOUTH_RIGHT, pose.PoseLandmark.MOUTH_LEFT),
+
+            # Upper body
+            (pose.PoseLandmark.LEFT_SHOULDER, pose.PoseLandmark.RIGHT_SHOULDER),
+            (pose.PoseLandmark.RIGHT_SHOULDER, pose.PoseLandmark.RIGHT_ELBOW),
+            (pose.PoseLandmark.RIGHT_ELBOW, pose.PoseLandmark.RIGHT_WRIST),
+            (pose.PoseLandmark.LEFT_SHOULDER, pose.PoseLandmark.LEFT_ELBOW),
+            (pose.PoseLandmark.LEFT_ELBOW, pose.PoseLandmark.LEFT_WRIST),
+            (pose.PoseLandmark.RIGHT_WRIST, pose.PoseLandmark.RIGHT_PINKY),
+            (pose.PoseLandmark.RIGHT_WRIST, pose.PoseLandmark.RIGHT_INDEX),
+            (pose.PoseLandmark.RIGHT_WRIST, pose.PoseLandmark.RIGHT_THUMB),
+            (pose.PoseLandmark.LEFT_WRIST, pose.PoseLandmark.LEFT_PINKY),
+            (pose.PoseLandmark.LEFT_WRIST, pose.PoseLandmark.LEFT_INDEX),
+            (pose.PoseLandmark.LEFT_WRIST, pose.PoseLandmark.LEFT_THUMB),
+
+            # Torso
+            (pose.PoseLandmark.LEFT_SHOULDER, pose.PoseLandmark.LEFT_HIP),
+            (pose.PoseLandmark.RIGHT_SHOULDER, pose.PoseLandmark.RIGHT_HIP),
+            (pose.PoseLandmark.LEFT_HIP, pose.PoseLandmark.RIGHT_HIP),
+
+            # Lower body
+            (pose.PoseLandmark.RIGHT_HIP, pose.PoseLandmark.RIGHT_KNEE),
+            (pose.PoseLandmark.RIGHT_KNEE, pose.PoseLandmark.RIGHT_ANKLE),
+            (pose.PoseLandmark.LEFT_HIP, pose.PoseLandmark.LEFT_KNEE),
+            (pose.PoseLandmark.LEFT_KNEE, pose.PoseLandmark.LEFT_ANKLE),
+            (pose.PoseLandmark.RIGHT_ANKLE, pose.PoseLandmark.RIGHT_HEEL),
+            (pose.PoseLandmark.RIGHT_HEEL, pose.PoseLandmark.RIGHT_FOOT_INDEX),
+            (pose.PoseLandmark.LEFT_ANKLE, pose.PoseLandmark.LEFT_HEEL),
+            (pose.PoseLandmark.LEFT_HEEL, pose.PoseLandmark.LEFT_FOOT_INDEX)
+        ]
+
+
+        print("Starting pose annotation...")
+        print(f"Image dimensions: {new_width}x{new_height}")
+        
+        # Draw keypoints and store coordinates
+        print("\nDrawing keypoints...")
+        for idx, landmark in enumerate(landmarks.landmark):
             x = int(landmark.x * image.shape[1])
             y = int(landmark.y * image.shape[0])
-            landmarks_points.append([x, y])
+            
+            # print(f"Landmark {idx} ({pose.PoseLandmark(idx).name}): x={x}, y={y}")
             cv2.circle(image, (x, y), 5, (0, 255, 0), -1)
+        
+        # Draw skeleton lines
+        print("\nDrawing skeleton connections...")
+        for connection in skeleton_connections:
+            start_point = landmarks.landmark[connection[0]]
+            end_point = landmarks.landmark[connection[1]]
+            
+            # Convert normalized coordinates to pixel coordinates
+            start_x = int(start_point.x * image.shape[1])
+            start_y = int(start_point.y * image.shape[0])
+            end_x = int(end_point.x * image.shape[1])
+            end_y = int(end_point.y * image.shape[0])
+            
+            # print(f"Drawing line from {connection[0].name} to {connection[1].name}")
+            # print(f"Coordinates: ({start_x}, {start_y}) to ({end_x}, {end_y})")
+
+            landmarks_points.append([start_x, start_y,end_x,end_y])
+            cv2.line(image, (start_x, start_y), (end_x, end_y), (0, 255, 255), 2)
+
+        print(f"\nTotal landmarks detected: {len(landmarks_points)}")
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
-            # Assign task based on detections
-            executor.submit(self.send_instruction([],new_width,new_height,sourceId,sessionId,manualId,[],landmarks_points))
+            executor.submit(self.send_instruction_pose([],new_width,new_height,sourceId,sessionId,manualId,[],landmarks_points))
+        
         return image
-
 
     def image_input(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
@@ -840,10 +953,12 @@ class Detections:
                     task_manager = TaskManager(steps=steps)                
                     print(f"The task number is: {task}") 
                     response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
+                    
                     logger.debug(f"Response from graph: {response}")
 
 
                     if response !=0 and response!=None:
+                        
 
                         self.add_lag(sourceId,sessionId,response)
 
@@ -855,6 +970,7 @@ class Detections:
             return 
                 
         except Exception as e:
+            print(e,"---------------------------------------Error")
             logger.error(f"Error occurred: {e}")
             return e
 
@@ -1060,19 +1176,20 @@ class Detections:
             # Example usage:
               # Change this to the desired source ID
             map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
-
+            print(sourceId,sessionId,manualId)
             things_present=list(set(things_present))
-
+            print(map)
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
 
             # Converting the filter object to a list and getting the first item
             task = next(matching_keys, -1)
-
+            print(task)
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
             # Retrieve detections from MongoDB
             saved_detections = self.get_detection(sessionId)
 
+            print(len(saved_detections), saved_detections)
 
             if saved_detections:
                 logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")

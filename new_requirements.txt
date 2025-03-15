@@ -13,5 +13,3 @@ uvicorn
 mediapipe
 deepface
 ultralytics
-tf-keras
-tensorflow-cpu
