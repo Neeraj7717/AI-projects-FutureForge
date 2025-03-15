@@ -173,6 +173,7 @@ def get_final_summary(sessionId):
     return session_data[sessionId]['feedback'], session_data[sessionId]['feedback_urls']
 
 def analyze_live_squat(session_id, frame, target_reps=1):
+
     """
     Process live video feed, analyze squat form, count good squats, and stop after reaching target
     """
@@ -198,18 +199,18 @@ def analyze_live_squat(session_id, frame, target_reps=1):
 
     with mp_pose.Pose(
         static_image_mode=False,
-        model_complexity=2,  # Use the most accurate model
+        model_complexity=1,  # Use the most accurate model
         enable_segmentation=False,
         min_detection_confidence=0.3,
         min_tracking_confidence=0.3) as pose:
+
         
         pose_logger.info(f"Starting squat analysis. Target: {target_reps} good squats")
         pose_logger.info(f"Stand in view of the camera and prepare to begin...{session_id}")
-        
         # Process the image
         results = pose.process(frame)
         frame_height, frame_width = frame.shape[:2]
-        # Draw landmarks on the image
+        Draw landmarks on the image
         annotated_image = frame.copy()
         pose_logger.info(f"Debug------------------------------------------------------------------1")
         

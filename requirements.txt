@@ -14,4 +14,4 @@ mediapipe
 deepface
 ultralytics
 tf-keras
-tensorflow-cpu
+opencv-python
