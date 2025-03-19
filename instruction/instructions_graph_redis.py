@@ -75,6 +75,9 @@ class TaskManager:
             self.collection.insert_one({"sessionId": sessionId, "current_step": start_step})
             return start_step
  
+
+
+
     def get_current_step_redis(self, sessionId, manualId):
         key = f"vip:{sessionId}:{manualId}:state"
         try:
@@ -91,6 +94,9 @@ class TaskManager:
             current_step = int(redis_client.get(key))
             return current_step
 
+
+
+
     def update_step(self, sessionId, step):
         # Updates the current_step. Assumes document exists, but handles the case where current_step might not.
         self.collection.update_one(
@@ -98,18 +104,33 @@ class TaskManager:
             {"$set": {"current_step": step}}
         )
 
+
+
+
+
     def update_step_redis(self, sessionId, manualId, step):
         key = f"vip:{sessionId}:{manualId}:state"
         # Updates the current_step in Redis
         redis_client.set(key, step)
 
 
+
+    def reset_step_redis(self, sessionId, manualId):
+        self.update_step_redis(sessionId, manualId, 1)
+ 
+
+
     def reset_step(self, sessionId):
         self.update_step(sessionId, 1)
  
+
+
     def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes,things_present,data):
         manual = self.mongodb.get_document_by_id(document_id=int(manualId))
-        current_step = self.get_current_step(sessionId, sourceId)
+
+        # current_step = self.get_current_step(sessionId, sourceId)
+        current_step = self.get_current_step_redis(sessionId, manualId)
+
         total_steps = len(self.steps)
 
         next_step = self.task_graph.get_next(current_step)
@@ -148,6 +169,7 @@ class TaskManager:
             self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
             message["status"]="completed"
             self.mongodb.add_end_time(sessionId, step_details["_id"],message)
+
         print(current_step,manual["steps"][-2]["_id"],task)
         if current_step>manual["steps"][-2]["_id"]:
             return
@@ -155,7 +177,8 @@ class TaskManager:
         if current_step == manual["steps"][-2]["_id"] and (task == 0 or current_step==task):
             print("c\no\nr\nr\ne\nc\nt")
             if not self.model:
-                self.update_step(sessionId,current_step+2)
+                # self.update_step(sessionId,current_step+2)
+                self.update_step_redis(sessionId, manualId, current_step+2)
                 feedback = ""
                 feedbackUrl = ""
                 for step in manual["steps"]:
@@ -163,12 +186,12 @@ class TaskManager:
                         step_details=step
                         break
                 logger.debug(step_details["text"])
-                print(manualId, type(manualId))
-                print(step_details["_id"], type(step_details["_id"]))
+                # print(manualId, type(manualId))
+                # print(step_details["_id"], type(step_details["_id"]))
                 if int(manualId) == 19 and step_details["_id"]==4:
                     print("In manualId 19")
-                    feedback, feedbackUrl = get_final_summary(sessionId)
-                    print(feedback, feedbackUrl)
+                    key = f"pose:{sessionId}:{manualId}:feedback"
+                    feedback = (redis_client.get(key)).decode('utf-8')
                 message = {
                     "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
@@ -227,7 +250,8 @@ class TaskManager:
             else:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "yes":
-                    self.reset_step(sessionId)
+                    # self.reset_step(sessionId)
+                    self.reset_step_redis(sessionId, manualId)
                     step_details = manual["steps"][-1]
                     logger.debug(step_details["text"])
                     steps_mongo = {
@@ -355,6 +379,8 @@ class TaskManager:
                                 Text = "I can see your left hand raised. Please raise your right hand instead."
                             elif "rightHandRaised" in true_items and "noHandsRaised" in things_present:
                                 Text = "I don't see any hand raised. Please raise your right hand."
+                            elif "squatInProcess" in things_present:
+                                Text =  "Squats in process."
                             elif "leftHandRaised" in true_items and "rightHandRaised" in things_present:
                                 Text = "I can see your right hand raised. Please raise your left hand instead."
                             elif "leftHandRaised" in true_items and "noHandsRaised" in things_present:
@@ -431,7 +457,9 @@ class TaskManager:
             logger.debug(next_step)
             if not self.model:
                 if next_step is not None:
-                    self.update_step(sessionId, next_step)
+                    # self.update_step(sessionId, next_step)
+                    self.update_step_redis(sessionId, manualId, next_step)
+                    
                     for step in manual["steps"]:
                         if step["_id"]==current_step:
                             step_details=step
@@ -502,7 +530,9 @@ class TaskManager:
                 response = self.llava.verify(frame_bytes=frame_bytes)
                 if response == "yes" or response == "Yes":
                     if next_step is not None:
-                        self.update_step(sessionId, next_step)
+                        # self.update_step(sessionId, next_step)
+                        self.update_step_redis(sessionId, manualId, next_step)
+
                         for step in manual["steps"]:
                             if step["_id"]==current_step:
                                 step_details=step

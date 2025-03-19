@@ -11,11 +11,16 @@ import logging
 from matplotlib import animation
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from s3utils.generaloperations import upload_to_s3_bucket
-
-
-ENABLE_FILE_LOGGING = False
-# Create a custom logger for this file only
+import redis
 pose_logger = logging.getLogger('pose_analytics')
+
+
+# Connect to Redis
+redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
+
+
+ENABLE_FILE_LOGGING = True
+# Create a custom logger for this file only
 pose_logger.setLevel(logging.INFO)
 
 # Create handlers
@@ -41,38 +46,6 @@ pose_logger.propagate = False
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose
 
-
-# Define the connections for 3D visualization
-# POSE_CONNECTIONS = [(0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8), 
-#                      (9, 10), (11, 12), (11, 13), (13, 15), (15, 17), (15, 19), (15, 21), 
-#                      (17, 19), (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (18, 20), 
-#                      (11, 23), (12, 24), (23, 24), (23, 25), (24, 26), (25, 27), (26, 28), 
-#                      (27, 29), (28, 30), (29, 31), (30, 32), (27, 31), (28, 32)]
-
-
-# CUSTOM_POSE_CONNECTIONS = [
-#     # Shoulder connections
-#     (11, 12),  # Left shoulder to right shoulder
-#     (11, 13),  # Left shoulder to left elbow
-#     (12, 14),  # Right shoulder to right elbow
-    
-#     # Hip connections
-#     (23, 24),  # Left hip to right hip
-#     (11, 23),  # Left shoulder to left hip
-#     (12, 24),  # Right shoulder to right hip
-    
-#     # Knee connections
-#     (23, 25),  # Left hip to left knee
-#     (24, 26),  # Right hip to right knee
-# ]
-# pose_instance = mp_pose.Pose(
-#     static_image_mode=False,
-#     model_complexity=1,
-#     enable_segmentation=False,
-#     smooth_landmarks=True,
-#     min_detection_confidence=0.3,
-#     min_tracking_confidence=0.3)
-
 def calculate_angle(a, b, c):
     """
     Calculate angle between three points in 2D
@@ -95,7 +68,7 @@ def is_good_squat(min_knee_angle):
     """
     Determine if a squat is performed with good form based on knee angle
     """
-    pose_logger.info(f"Checking squat quality with min knee angle: {min_knee_angle:.1f}")
+    # pose_logger.info(f"Checking squat quality with min knee angle: {min_knee_angle:.1f}")
     return min_knee_angle <= 80
 
 
@@ -109,17 +82,17 @@ def init_session_data(session_id):
         session_data[session_id] = {
             'knee_angles_left': [],
             'knee_angles_right': [], 
-            'hip_angles_left': [],
-            'hip_angles_right': [],
-            'back_angles': [],
-            'pose_3d_frames': [],
+            # 'hip_angles_left': [],
+            # 'hip_angles_right': [],
+            # 'back_angles': [],
+            # 'pose_3d_frames': [],
             'is_squatting': False,
             'good_squat_count': 0,
             'total_squat_count': 0,
             'bad_squat_count': 0,
             'min_knee_angle': 120,
             'feedback': "",
-            'feedback_urls': ""
+            'feedback_urls': ""  # Changed to string as per followup instructions
         }
     return session_data[session_id]
 
@@ -129,27 +102,41 @@ def get_final_summary(sessionId):
         return "", ""
     return session_data[sessionId]['feedback'], session_data[sessionId]['feedback_urls']
 
-def analyze_live_squat(session_id, frame, results, target_reps=1):
-    print("the results were",results)
 
+def set_if_not_exists(redis_client, sessionId, manualId, key, value):
+    redis_key  = f"pose:{sessionId}:{manualId}:{key}"
+    if not redis_client.exists(redis_key):  # Check if key exists
+        redis_client.set(redis_key, value)
+        pose_logger.info(f"Key '{redis_key}' was not present, so it was set with value: {value}")
+        return value
+    else:
+        value = redis_client.get(redis_key)
+        pose_logger.info(f"Key '{redis_key}' already exists. Value: {value.decode('utf-8')}")
+        return value.decode('utf-8')
+
+
+def update_value(redis_client, sessionId, manualId, key, new_value):
+    redis_key  = f"pose:{sessionId}:{manualId}:{key}"
+    if redis_client.exists(redis_key):
+        redis_client.set(redis_key, new_value)
+        pose_logger.info(f"Key '{redis_key}' updated with new value: {new_value}")
+    else:
+        pose_logger.info(f"Key '{redis_key}' does not exist. Cannot update.")
+
+good_squrt_angle = 80
+squart_start_angle = 120
+
+
+def analyze_live_squat(session_id, manual_id, frame, results, target_reps=1):
 
     """
     Process live video feed, analyze squat form, count good squats, and stop after reaching target
     """
     pose_logger.info("----------------------((((((((((((((((((((((((( In squat )))))))))))))))))))))))))--------------------------------")
-    start_time=time.time()
-    # pose_logger.info(f"the Time at start {start_time}")
-
+    
     # Get or initialize session data
     current_session = init_session_data(session_id)
     
-    # Get session data for current analysis
-    knee_angles_left = current_session['knee_angles_left']
-    knee_angles_right = current_session['knee_angles_right']
-    hip_angles_left = current_session['hip_angles_left'] 
-    hip_angles_right = current_session['hip_angles_right']
-    back_angles = current_session['back_angles']
-    pose_3d_frames = current_session['pose_3d_frames']
     is_squatting = current_session['is_squatting']
     good_squat_count = current_session['good_squat_count']
     total_squat_count = current_session['total_squat_count']
@@ -159,18 +146,33 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
     feedback_urls = current_session['feedback_urls']
 
 
+    redis_is_sqt = set_if_not_exists(redis_client, session_id, manual_id, "isSqt", 0)
+    redis_is_good_sqt = set_if_not_exists(redis_client, session_id, manual_id, "isGoodSqt", 0)
+    redis_total_sqt  = set_if_not_exists(redis_client, session_id, manual_id, "totalSqt", 0)
+    redis_good_sqt_count  = set_if_not_exists(redis_client, session_id, manual_id, "goodSqtCount", 0)
+    redis_feedback = set_if_not_exists(redis_client,session_id,manual_id,"feedback","")
+    redis_feedback_url = set_if_not_exists(redis_client,session_id,manual_id,"feedbackUrl","")
+    
+    # pose_logger.info("redis is_sqt------------------------------------------- %s", redis_is_sqt)
+    # pose_logger.info("redis is_good_sqt------------------------------------------- %s", redis_is_good_sqt)
+    # pose_logger.info("redis total_sqt------------------------------------------- %s", redis_total_sqt)
+    # pose_logger.info("redis good_sqt_count------------------------------------------- %s", redis_good_sqt_count)
+    # pose_logger.info("redis feedback------------------------------------------- %s", redis_feedback)
+    # pose_logger.info("redis feedbackUrl------------------------------------------- %s", redis_feedback_url)
+
+
+
+        
     pose_logger.info(f"Starting squat analysis. Target: {target_reps} good squats")
     pose_logger.info(f"Stand in view of the camera and prepare to begin...{session_id}")
-    # Process the image
-    
     frame_height, frame_width = frame.shape[:2]
-    # Draw landmarks on the image
     annotated_image = frame.copy()
-    pose_logger.info(f"Debug------------------------------------------------------------------1")
+    # pose_logger.info(f"Debug------------------------------------------------------------------1")
     if results.pose_landmarks:
-        # Extract landmarks
-        pose_logger.info(f"Debug------------------------------------------------------------------2")
+        # pose_logger.info(f"Debug------------------------------------------------------------------2")
+
         landmarks = results.pose_landmarks.landmark
+
         left_hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
                     landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
         left_knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
@@ -179,9 +181,7 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
                         landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
         
         left_knee_angle = calculate_angle(left_hip, left_knee, left_ankle)
-        knee_angles_left.append(left_knee_angle)
         
-        # Right knee
         right_hip = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
                         landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
         right_knee = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
@@ -190,32 +190,39 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
                         landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
         
         right_knee_angle = calculate_angle(right_hip, right_knee, right_ankle)
-        knee_angles_right.append(right_knee_angle)
         
-        # Hip angles
-        # left_shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-        #                     landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
-        # left_hip_angle = calculate_angle(left_shoulder, left_hip, left_knee)
-        # hip_angles_left.append(left_hip_angle)
-        
-        # right_shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
-        #                     landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
-        # right_hip_angle = calculate_angle(right_shoulder, right_hip, right_knee)
-        # hip_angles_right.append(right_hip_angle)
-        
-        # # Back angle (spine relative to vertical)
-        # nose = [landmarks[mp_pose.PoseLandmark.NOSE.value].x,
-        #         landmarks[mp_pose.PoseLandmark.NOSE.value].y]
-        # mid_hip = [(left_hip[0] + right_hip[0])/2, (left_hip[1] + right_hip[1])/2]
-        # vertical = [mid_hip[0], 0]  # Point directly above mid_hip
-        
-        # spine_angle = calculate_angle(nose, mid_hip, vertical)
-        # back_angles.append(spine_angle)
-        
-        # Detect squat
         current_knee_angle = min(left_knee_angle, right_knee_angle)
         pose_logger.info(f"Current knee angle: {current_knee_angle:.1f}, Is squatting: {is_squatting}")
         
+        if current_knee_angle <= squart_start_angle and int(redis_is_sqt) == 0:
+            new_redis_total_sqt = int(redis_total_sqt) + 1
+            update_value(redis_client, session_id, manual_id, "isSqt", 1)
+            update_value(redis_client, session_id, manual_id, "totalSqt", new_redis_total_sqt)
+
+        if current_knee_angle > squart_start_angle and int(redis_is_sqt) == 1:
+            update_value(redis_client, session_id, manual_id, "isSqt", 0)
+
+        if current_knee_angle <= good_squrt_angle and int(redis_is_good_sqt) == 0:
+            new_redis_good_sqt_count = int(redis_good_sqt_count) + 1
+            update_value(redis_client, session_id, manual_id, "isGoodSqt", 1)
+            update_value(redis_client, session_id, manual_id, "goodSqtCount", new_redis_good_sqt_count)
+        
+        if current_knee_angle > good_squrt_angle and int(redis_is_good_sqt) ==1:
+            update_value(redis_client, session_id, manual_id, "isGoodSqt", 0)
+
+        redis_is_sqt = set_if_not_exists(redis_client, session_id, manual_id, "isSqt", 0)
+        redis_is_good_sqt = set_if_not_exists(redis_client, session_id, manual_id, "isGoodSqt", 0)
+        redis_total_sqt  = set_if_not_exists(redis_client, session_id, manual_id, "totalSqt", 0)
+        redis_good_sqt_count  = set_if_not_exists(redis_client, session_id, manual_id, "goodSqtCount", 0)
+
+
+        pose_logger.info("redis is_sqt------------------------------------------- %s", redis_is_sqt)
+        pose_logger.info("redis is_good_sqt------------------------------------------- %s", redis_is_good_sqt)
+        pose_logger.info("redis total_sqt------------------------------------------- %s", redis_total_sqt)
+        pose_logger.info("redis good_sqt_count------------------------------------------- %s", redis_good_sqt_count)
+
+
+
         # Check if we're entering a squat
         if current_knee_angle < 120 and not is_squatting:
             is_squatting = True
@@ -252,7 +259,8 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
                             
                             cloud_path = f"feedback_frames/"
                             url = upload_to_s3_bucket("eizen-dev", local_path, cloud_path, frame_filename)
-                            current_session['feedback_urls'].append(url)
+                            update_value(redis_client, session_id, manual_id, "feedbackUrl", url)
+                            current_session['feedback_urls'] += url   # Append URL to the string
                             
                             # Cleanup temporary file
                             os.remove(local_path)
@@ -267,7 +275,6 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
             success_rate = f"{(good_squat_count/total_squat_count * 100):.1f}%" if total_squat_count > 0 else "0%"
             feedback = f"good_squats were {good_squat_count} and bad_squats were {bad_squat_count} and total_attempts:{total_squat_count} and success_rate:{success_rate}|suggestion were "
 
-# Add appropriate suggestion to the feedback string
             if total_squat_count > 0:
                 if (bad_squat_count/total_squat_count) > 0.5:
                     feedback += "Most of your squats need improvement. Focus on going deeper by bending your knees more."
@@ -280,31 +287,26 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
             else:
                 feedback += "No squats performed yet."
             min_knee_angle = 120
-    
-   
-    
+
+
+
     # Build the feedback string with all stats and suggestions
-    # end_time = time.time()
-    # pose_logger.info(f"Analysis completed  for single frame in {end_time - start_time:.4f} seconds")
-    pose_logger.info(f"S3 feedback URLs: {current_session.get('feedback_urls', [])}")
+
+    pose_logger.info(f"S3 feedback URLs: {current_session.get('feedback_urls', '')}")
     pose_logger.info(f"Good squats completed: {good_squat_count}/{target_reps}")
     pose_logger.info(f"Total squat attempts: {total_squat_count}")
     pose_logger.info(f"Bad squat attempts: {bad_squat_count}")
     pose_logger.info(f"the feedback was: {feedback}")
-    pose_logger.info(f"the end time of analyzing live squat was{time.time()-start_time}")
+    update_value(redis_client, session_id, manual_id, "feedback", feedback)
+    redis_feedback = set_if_not_exists(redis_client,session_id,manual_id,"feedback","")
+    redis_feedback_url = set_if_not_exists(redis_client,session_id,manual_id,"feedbackUrl","")
+    pose_logger.info("redis feedback------------------------------------------- %s", redis_feedback)
+    pose_logger.info("redis feedbackUrl------------------------------------------- %s", redis_feedback_url)
     
 
 
     pose_logger.info("----------------------((((((((((((((((((((((((( Out squat )))))))))))))))))))))))))--------------------------------")
 
-    # Update the session data
-
-    current_session['knee_angles_left'] = knee_angles_left
-    current_session['knee_angles_right'] = knee_angles_right
-    current_session['hip_angles_left'] = hip_angles_left
-    current_session['hip_angles_right'] = hip_angles_right
-    current_session['back_angles'] = back_angles
-    current_session['pose_3d_frames'] = pose_3d_frames
     current_session['is_squatting'] = is_squatting
     current_session['good_squat_count'] = good_squat_count
     current_session['total_squat_count'] = total_squat_count
@@ -320,6 +322,9 @@ def analyze_live_squat(session_id, frame, results, target_reps=1):
         return "squatInProcess"
     else:
         return "squatCompleted"
+    
+    
+####################################################################### Not Using Any more ############################################################
 
 def generate_squat_report(knee_angles_left, knee_angles_right, back_angles, good_squat_count, total_squat_count):
     """

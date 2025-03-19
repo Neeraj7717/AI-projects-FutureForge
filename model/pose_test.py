@@ -6,6 +6,7 @@ import traceback
 import numpy as np
 import pymongo
 import cv2
+from datetime import datetime
 import mediapipe as mp
 import concurrent.futures
 from kafka import KafkaProducer
@@ -278,6 +279,7 @@ class Pose:
 
     def pose_detector(self, file, sourceId, sessionId, manualId):
         try:
+            print(datetime.now())
             start_time = time.time()
             pose_logger.info("Starting pose detection...")
             
@@ -316,9 +318,10 @@ class Pose:
                     results.pose_landmarks, 
                     sourceId, 
                     sessionId, 
-                    manualId
+                    manualId,
+                    start_time
                 )
-
+            pose_results = results
             # Submit squat analysis to run asynchronously
             self.executor.submit(
                 self.process_squat_analysis,
@@ -326,6 +329,7 @@ class Pose:
                 frame,
                 things_present,
                 sourceId,
+                pose_results,
                 manualId
             )
             
@@ -336,45 +340,60 @@ class Pose:
             pose_logger.error(f"Error occurred: {e}")
             traceback.print_exc()
 
-    def process_squat_analysis(self, sessionId, frame, things_present, sourceId, manualId):
-        """Handle squat analysis in a separate thread"""
+    def process_squat_analysis(self, sessionId, frame, things_present, sourceId, results, manualId):
+        """Handle squat analysis in a separate thread"""        
         try:
-            squat_start = time.time()
             document = self.stepcollection.find_one({"sessionId": sessionId})
-            
             if document and 'current_step' in document:
                 current_step = document['current_step']
                 pose_logger.info(f"{current_step}----------------------------------------------------------current step")
                 pose_logger.info(f"{things_present}----------------------------------------------------------Things Present")
                 
                 if current_step > 2 and current_step < 6:
-                    squats_result = analyze_live_squat(sessionId, frame)
-                    squat_time = time.time() - squat_start
-                    pose_logger.info(f"Squat analysis completed in {squat_time:.3f}s")
-                    pose_logger.info(squats_result)
+                    # Time the squat analysis
+                    squat_start_time = time.time()
+                    pose_logger.info(f"Starting analyze_live_squat at {squat_start_time}")
+                    
+                    squats_result = analyze_live_squat(sessionId, frame, results)
+                    
+                    squat_end_time = time.time()
+                    squat_duration = squat_end_time - squat_start_time
+                    pose_logger.info(f"analyze_live_squat completed in {squat_duration:.3f}s")
+                    pose_logger.info(f"Result from squat analysis: {squats_result}")
                     
                     # Create a copy of things_present to avoid race conditions
                     updated_things_present = things_present.copy()
                     updated_things_present.append(squats_result)
                     pose_logger.info(f"{updated_things_present}----------------------------------------------------------Things Present")
                     
-                    # Process the instruction graph with the updated things_present
+                    # Time the instruction graph execution
+                   
+                    
                     self.instruction_graph(sourceId, sessionId, manualId, frame, updated_things_present)
+                
                 else:
-                    # If not in squat step range, process with original things_present
-
+                    # If not in squat step range, time only instruction_graph
                     self.instruction_graph(sourceId, sessionId, manualId, frame, things_present)
             else:
-                # If no document or current_step, process with original things_present
+                # If no document or current_step, time only instruction_graph
                 self.instruction_graph(sourceId, sessionId, manualId, frame, things_present)
                 
+               
+        
         except Exception as e:
             pose_logger.error(f"{e}--------------------------------------------------------------------------------Squat Analysis Error")
-            # Even if squat analysis fails, still process the frame
+            traceback.print_exc()
             self.instruction_graph(sourceId, sessionId, manualId, frame, things_present)
+
+        
+        overall_end_time = time.time()
+        overall_duration = overall_end_time - overall_start_time
+        pose_logger.info(f"Overall process_squat_analysis completed in {overall_duration:.3f}s")
 
     def instruction_graph(self, sourceId, sessionId, manualId, frame, things_present):
         try:
+            instruction_start = time.time()
+
             pose_logger.info(f"--------------------------------------------In side Graph Function 1")
             
             lag = self.get_lag(sourceId, sessionId)
@@ -397,8 +416,13 @@ class Pose:
                         self.add_lag(sourceId, sessionId, response)
 
                     pose_logger.info(f"Response from graph: {response}")
+                instruction_time1 = time.time() - instruction_start
+                pose_logger.info(f"Instruction analysis completed in {instruction_time1:.3f}s ---------------if")
             else:
-                self.reduce_lag(sourceId, sessionId)
+                self.reduce_lag(sourceId, sessionId)                
+                instruction_time1 = time.time() - instruction_start
+                pose_logger.info(f"Instruction analysis completed in {instruction_time1:.3f}s ---------------else")
+                
         except Exception as e:
             pose_logger.error(f"Error in instruction_graph: {e}")
             traceback.print_exc()
@@ -432,7 +456,7 @@ class Pose:
 
 
 
-    def draw_annotations(self, image, landmarks, sourceId, sessionId, manualId):
+    def draw_annotations(self, image, landmarks, sourceId, sessionId, manualId, start_time):
         try:
             if not landmarks:
                 return
@@ -499,6 +523,10 @@ class Pose:
             
             # Send the instruction pose directly - no need for extra threading here
             self.send_instruction_pose([], new_width, new_height, sourceId, sessionId, manualId, [], landmarks_points)
+            total_time = time.time() - start_time
+            print(datetime.now(),"---2")
+
+            pose_logger.info(f"Pose Keypoints Sent successfully completed in {total_time:.3f}s -------------------------------------------------------------------Final Time")
         
         except Exception as e:
             pose_logger.error(f"Error in draw_annotations: {e}")

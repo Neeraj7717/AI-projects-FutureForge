@@ -40,4 +40,4 @@ ENV PYTHONUNBUFFERED=1
 COPY . /usr/app
 
 # Run the application
-CMD ["python3", "core/main.py"]
+CMD ["python3", "core/main_test.py"]

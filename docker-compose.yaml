@@ -5,7 +5,9 @@ services:
     image: eizen-via-api
     container_name: eizen-via-api
     restart: unless-stopped
-    network_mode: host
+      # network_mode: host
+    ports:
+      - "8079:8079"
     env_file:
       - .env
     volumes:
@@ -23,3 +25,4 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+

@@ -29,6 +29,6 @@ class Settings(BaseSettings):
     SECRET_KEY:str
     context_based_question_answer:str
     java_endpoint:str
-
+    fps : int
     class Config:
         env_file = "./.env"

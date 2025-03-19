@@ -129,6 +129,7 @@ class MongoDBConnector:
 
         except PyMongoError as e:
             return f"An error occurred while inserting or updating data: {e}"
+        
     def add_end_time(self, session_id, step_id,message):
         try:
             step_id = str(step_id)
