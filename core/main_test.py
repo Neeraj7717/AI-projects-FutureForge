@@ -111,7 +111,7 @@ async def detect_pose_endpoint(input_data: Input):
                 # Run the next two tasks in parallel using asyncio.gather
                 await asyncio.gather(
                     asyncio.to_thread(pose_obj.draw_annotations, frame, results, sourceId, sessionId, manualId, start_time, current_frame_no),
-                    # asyncio.to_thread(pose_obj.process_squat_analysis, sessionId, frame, things_present, sourceId, manualId, results, current_frame_no)
+                    asyncio.to_thread(pose_obj.process_squat_analysis, sessionId, frame, things_present, sourceId, manualId, results, current_frame_no)
                 )
  
             except Exception as e:
