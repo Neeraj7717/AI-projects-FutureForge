@@ -60,7 +60,7 @@ class Pose:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
         self.fps = config.fps
         self.task_manager = TaskManager()
-        self.redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
+        self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
         # Store manual data in a dictionary
         self.manual_data_cache = {}
 

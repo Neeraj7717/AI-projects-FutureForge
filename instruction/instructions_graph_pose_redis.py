@@ -50,7 +50,7 @@ class TaskManager:
         self.mongodb = MongoDBConnector()
         self.producer = KafkaProducer(bootstrap_servers=kafka_url)
         # Connect to Redis
-        self.redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
+        self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
  
     # def get_current_step(self, sessionId, sourceId):
     #     document = self.collection.find_one({"sessionId": sessionId})

@@ -5,12 +5,15 @@ import asyncio
 import logging
 import os
 import redis
+from Config.settings import Settings
 from s3utils.generaloperations import upload_to_s3_bucket
 
+
+config = Settings()
 # Configuration (load from .env file or command-line args)
-REDIS_HOST = '192.168.0.162'
-REDIS_PORT = 6379
-REDIS_DB = 0
+REDIS_HOST = config.redis_host
+REDIS_PORT = config.redis_port
+REDIS_DB = config.redis_db
 S3_BUCKET = 'eizen-dev'
 
 GOOD_SQUAT_ANGLE = 80

@@ -11,11 +11,13 @@ import traceback
 from utils.pose_analytics import get_final_summary
 import redis
 
-# Connect to Redis
-redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
+
 # Load configurations
 config = Settings()
  
+# Connect to Redis
+redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
+
 # Configure the root logger to output logs to the terminal
 logging.basicConfig(level=config.log_level, format='%(asctime)s - %(levelname)s - %(message)s')
  
