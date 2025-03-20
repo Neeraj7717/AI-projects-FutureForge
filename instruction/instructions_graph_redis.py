@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 from pymongo.collection import ReturnDocument
 import requests
-from instruction.instructions_llava import LlavaInference
+# from instruction.instructions_llava import LlavaInference
 from utils.mongo_operations import MongoDBConnector
 from kafka import KafkaProducer
 from Config.settings import Settings
@@ -53,7 +53,7 @@ class TaskManager:
         self.mongodb = MongoDBConnector()
         # Create a Kafka producer
         self.producer = KafkaProducer(bootstrap_servers=kafka_url)
-        self.llava = LlavaInference(steps=self.steps)
+        # self.llava = LlavaInference(steps=self.steps)
  
     def get_current_step(self, sessionId, sourceId):
         document = self.collection.find_one({"sessionId": sessionId})
@@ -618,3 +618,7 @@ class TaskManager:
                         return self.steps.get(next_step, "Please perform the next step.")
                     else:
                         return "Well Done! Your task is completed. Please confirm to start over."
+
+    def close(self):
+        self.client.close()
+        self.mongodb.close()

@@ -19,7 +19,7 @@ pose_logger = logging.getLogger('pose_analytics')
 redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
 
 
-ENABLE_FILE_LOGGING = True
+ENABLE_FILE_LOGGING = False
 # Create a custom logger for this file only
 pose_logger.setLevel(logging.INFO)
 

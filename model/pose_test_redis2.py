@@ -11,12 +11,12 @@ import mediapipe as mp
 import concurrent.futures
 from kafka import KafkaProducer
 from Config.settings import Settings
-from utils.pose_analytics_feedback_redis import analyze_live_squat
+from utils.pose_analytics_feedback_redis import analyze_live_squat, close_redis_connection_pose_utils
 from instruction.instructions_graph_redis import TaskManager
 import redis
+import os
 
-# Connect to Redis
-redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
+
 
 pose = mp.solutions.pose
 
@@ -60,37 +60,46 @@ class Pose:
 
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
         self.fps = config.fps
+        self.redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
         # Store manual data in a dictionary
         self.manual_data_cache = {}
+
+    def close(self):
+        """Close MongoDB and executor to prevent memory leaks."""
+        self.client.close()  # Close MongoDB connection
+        self.executor.shutdown(wait=True)  # Shutdown ThreadPoolExecutor
+        # Redis client does not need to be explicitly closed, but ensure no references are kept
+        self.redis_client.close() # Clear the reference to the Redis client
+        close_redis_connection_pose_utils()
 
     def reduce_lag_redis(self, sessionId, manualId):
         """Reduce lag in Redis by decrementing the value."""
         key = f"vip:{sessionId}:{manualId}:lag"
-        if not redis_client.exists(key):  # Check if key exists
-            redis_client.set(key, 0)  # Initialize lag to 0 if it doesn't exist
+        if not self.redis_client.exists(key):  # Check if key exists
+            self.redis_client.set(key, 0)  # Initialize lag to 0 if it doesn't exist
         else:
-            value = int(redis_client.get(key))  # Ensure value is an integer
-            redis_client.set(key, max(0, value - 1))  # Decrement lag but ensure it doesn't go below 0
+            value = int(self.redis_client.get(key))  # Ensure value is an integer
+            self.redis_client.set(key, max(0, value - 1))  # Decrement lag but ensure it doesn't go below 0
 
     def add_lag_redis(self, sessionId, manualId, time):
         """Add lag in Redis."""
         key = f"vip:{sessionId}:{manualId}:lag"
         time = time * self.fps
-        redis_client.set(key, time)  # Set the lag value directly
+        self.redis_client.set(key, time)  # Set the lag value directly
 
     def get_lag_redis(self, sessionId, manualId):
         """Retrieve lag from Redis."""
         key = f"vip:{sessionId}:{manualId}:lag"
-        if redis_client.exists(key):
-            return int(redis_client.get(key))  # Ensure the returned value is an integer
+        if self.redis_client.exists(key):
+            return int(self.redis_client.get(key))  # Ensure the returned value is an integer
         else:
-            redis_client.set(key, 0)  # Initialize lag to 0 if it doesn't exist
+            self.redis_client.set(key, 0)  # Initialize lag to 0 if it doesn't exist
             return 0
 
     def store_detection_redis(self, sourceId, task, sessionId, manualId):
         """Store or update detections in Redis."""
         key = f"via:{sessionId}:{manualId}:{sourceId}:detections"
-        existing_tasks = redis_client.get(key)
+        existing_tasks = self.redis_client.get(key)
 
         if existing_tasks:
             # If tasks exist, append the new task
@@ -100,17 +109,17 @@ class Pose:
             elif not isinstance(updated_tasks, list):
                 updated_tasks = []  # Initialize as an empty list if it's not a list
             updated_tasks.append(task)  # Append the new task
-            redis_client.set(key, json.dumps({"tasks": updated_tasks}))  # Update the tasks in Redis
+            self.redis_client.set(key, json.dumps({"tasks": updated_tasks}))  # Update the tasks in Redis
         else:
             # If no tasks exist, create a new list with the task
             data = {"tasks": [task]}
-            redis_client.set(key, json.dumps(data))  # Store the new data in Redis
+            self.redis_client.set(key, json.dumps(data))  # Store the new data in Redis
 
     def get_detection_redis(self, sessionId, manualId, sourceId):
         """Retrieve tasks from Redis."""
         key = f"via:{sessionId}:{manualId}:{sourceId}:detections"
 
-        existing_tasks = redis_client.get(key)
+        existing_tasks = self.redis_client.get(key)
         if existing_tasks:
             return json.loads(existing_tasks)["tasks"]
         else:
@@ -119,7 +128,7 @@ class Pose:
     def remove_detection_redis(self, sessionId, manualId, sourceId):
         """Remove detections from Redis."""
         key = f"via:{sessionId}:{manualId}:{sourceId}:detections"
-        redis_client.delete(key)
+        self.redis_client.delete(key)
 
     def assign_task(self, things_present, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file."""
@@ -179,7 +188,7 @@ class Pose:
             key_component = sessionId.encode('utf-8')
             message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),
                        "frameDimensions": [new_width, new_height], "keyPoints": keypoints}
-            # pose_logger.debug(message)
+            # pose_logger.info(message)
             self.producer.send("vip-bounding-box-details", key=key_component,
                                value=json.dumps(message).encode("utf-8"))
             # pose_logger.info("Message Sent from instruction")
@@ -261,9 +270,9 @@ class Pose:
             overall_start_time = time.time()
             # document = self.stepcollection.find_one({"sessionId": sessionId})
             key = f"vip:{sessionId}:{manualId}:state"
-            if redis_client.exists(key):
+            if self.redis_client.exists(key):
                 # if document and 'current_step' in document:
-                current_step = int(redis_client.get(key))
+                current_step = int(self.redis_client.get(key))
 
                 if current_step > 2 and current_step < 6:
                     squats_result = analyze_live_squat(sessionId, manualId, frame, results)
@@ -300,7 +309,7 @@ class Pose:
                     steps = {step["_id"]: step["text"] for step in manual["steps"][:-1]}
                     task_manager = TaskManager(steps=steps)
                     response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame, things_present, map)
-
+                    task_manager.close()
                     if response != 0 and response is not None:
                         # self.add_lag(sourceId, sessionId)
                         self.add_lag_redis(sessionId, manualId, response)

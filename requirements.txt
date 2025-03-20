@@ -16,3 +16,4 @@ ultralytics
 tf-keras
 opencv-python
 redis
+memory_profiler

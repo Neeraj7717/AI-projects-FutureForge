@@ -26,7 +26,7 @@ log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messa
 console_handler.setFormatter(log_format)
 pose_logger.addHandler(console_handler)
 
-ENABLE_FILE_LOGGING = True
+ENABLE_FILE_LOGGING = False
 if ENABLE_FILE_LOGGING:
     file_handler = logging.FileHandler('pose_analytics.log')
     file_handler.setFormatter(log_format)
@@ -79,10 +79,9 @@ def calculate_angle(a, b, c):
 #         pose_logger.error(f"Error uploading bad squat frame: {str(e)}")
 #         return None
 
-async def upload_bad_squat_frame(session_id, frame):
+async def upload_bad_squat_frame(session_id, manual_id,frame):
     try:
         frame_filename = f"bad_squat_{session_id}.jpg"
-
         os.makedirs("/tmp", exist_ok=True)
         local_path = f"/tmp/{frame_filename}"
 
@@ -90,13 +89,16 @@ async def upload_bad_squat_frame(session_id, frame):
         if not success:
             pose_logger.error(f"cv2.imwrite failed to write image to {local_path}")
             return None
+        
         cloud_path = f"feedback_frames/"
         url = upload_to_s3_bucket(S3_BUCKET, local_path, cloud_path, frame_filename)
-        os.remove(local_path)
-        return url
-    except Exception as e:
-        pose_logger.error(f"Error uploading bad squat frame: {str(e)}")
-        return None
+        update_value(redis_client, session_id, manual_id, "feedbackUrl", url)
+    finally:
+        # Ensure the temporary file is removed
+        if os.path.exists(local_path):
+            os.remove(local_path)
+    
+    return url
 
 def set_if_not_exists(redis_client, sessionId, manualId, key, value):
     redis_key  = f"pose:{sessionId}:{manualId}:{key}"
@@ -188,7 +190,9 @@ def analyze_live_squat(session_id, manual_id, frame, results, target_reps=1):
         
         # Upload frame for the first bad squat
         if redis_total_sqt - redis_good_sqt_count == 1 and redis_feedback_url == "":
-            asyncio.run(upload_bad_squat_frame(session_id, frame))
+            # Use the existing event loop to run the async function
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(upload_bad_squat_frame(session_id, manual_id,frame))
 
         if redis_total_sqt > 0:
             redis_bad_squat_count = redis_total_sqt - redis_good_sqt_count
@@ -217,3 +221,10 @@ def analyze_live_squat(session_id, manual_id, frame, results, target_reps=1):
         return "squatInProcess"
     else:
         return "squatCompleted"
+
+def close_redis_connection_pose_utils():
+    """
+    Close the Redis connection.
+    """
+    redis_client.close()
+    pose_logger.info("Redis connection closed.")
