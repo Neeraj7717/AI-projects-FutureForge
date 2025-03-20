@@ -5,7 +5,7 @@ import concurrent.futures
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware  # Import CORSMiddleware
 from model.detections_test_pose import Detections
-from model.pose_test_redis2 import Pose
+from model.pose_test_redis import Pose
 from model.gender_model import ProcessFrame
 import uvicorn
 import traceback
@@ -38,7 +38,7 @@ app.add_middleware(
 
 # Initialize detection model
 detector = Detections()
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=1000)
 pose_obj = Pose()
 gender = ProcessFrame()
 
@@ -61,8 +61,8 @@ class Input(BaseModel):
     sourceId: Optional[str] = None
     sessionId: Optional[str] = None
     manualId: Optional[str] = None
+    timeStamp: Optional[str] = None
 
-@profile
 @app.post("/detect-pose")
 async def detect_pose_endpoint(input_data: Input):
     try:
@@ -70,7 +70,7 @@ async def detect_pose_endpoint(input_data: Input):
             current_frame_no = global_state.frame_no
             global_state.frame_no += 1
         print("detect_pose_endpoint:start",current_frame_no,":", datetime.datetime.now())
-        
+        print(input_data.timeStamp)
         # Run pose detection in a separate thread without blocking
         future_pose_processing = asyncio.create_task(
             asyncio.to_thread(pose_obj._process_pose_detection, input_data.file, input_data.sourceId, input_data.sessionId, input_data.manualId, current_frame_no)
@@ -81,7 +81,7 @@ async def detect_pose_endpoint(input_data: Input):
                 frame, results, things_present, start_time = await future_pose_processing  # Await the task completion
                 # Run the next two tasks in parallel using asyncio.gather
                 await asyncio.gather(
-                    asyncio.to_thread(pose_obj.draw_annotations, frame, results, input_data.sourceId, input_data.sessionId, input_data.manualId, start_time, current_frame_no),
+                    asyncio.to_thread(pose_obj.draw_annotations, frame, results, input_data.sourceId, input_data.sessionId, input_data.manualId, start_time, current_frame_no, input_data.timeStamp),
                     asyncio.to_thread(pose_obj.process_squat_analysis, input_data.sessionId, frame, things_present, input_data.sourceId, input_data.manualId, results, current_frame_no)
                 )
  

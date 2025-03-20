@@ -11,8 +11,7 @@ import traceback
 from utils.pose_analytics import get_final_summary
 import redis
 
-# Connect to Redis
-redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
+
 # Load configurations
 config = Settings()
  
@@ -44,65 +43,63 @@ class TaskGraph:
         return self.graph.get(current_step)
  
 class TaskManager:
-    def __init__(self, db_uri=config.mongo_connection_string_stateless, db_name=config.stateless_db, collection_name=config.stateless_collection_state, steps={}):
+    def __init__(self, db_uri=config.mongo_connection_string_stateless, db_name=config.stateless_db, collection_name=config.stateless_collection_state):
         self.client = MongoClient(db_uri)
         self.db = self.client[db_name]
         self.collection = self.db[collection_name]
-        self.steps = steps
-        self.task_graph = TaskGraph(steps)
         self.mongodb = MongoDBConnector()
-        # Create a Kafka producer
         self.producer = KafkaProducer(bootstrap_servers=kafka_url)
-        # self.llava = LlavaInference(steps=self.steps)
+        # Connect to Redis
+        self.redis_client = redis.Redis(host='192.168.0.162', port=6379, db=0)
  
-    def get_current_step(self, sessionId, sourceId):
-        document = self.collection.find_one({"sessionId": sessionId})
-        try:
-            start_step=list(self.task_graph.get_graph().keys())[0]
-        except:
-            start_step=0
-        if document:
-            if 'current_step' not in document:
-                self.collection.update_one(
-                    {"_id": document["_id"]},
-                    {"$set": {"current_step": start_step}}
-                )
-                return start_step
-            else:
-                return document['current_step']
-        else:
-            # This condition might not be needed anymore, but kept for safety
-            self.collection.insert_one({"sessionId": sessionId, "current_step": start_step})
-            return start_step
+    # def get_current_step(self, sessionId, sourceId):
+    #     document = self.collection.find_one({"sessionId": sessionId})
+    #     try:
+    #         start_step=list(self.task_graph.get_graph().keys())[0]
+    #     except:
+    #         start_step=0
+    #     if document:
+    #         if 'current_step' not in document:
+    #             self.collection.update_one(
+    #                 {"_id": document["_id"]},
+    #                 {"$set": {"current_step": start_step}}
+    #             )
+    #             return start_step
+    #         else:
+    #             return document['current_step']
+    #     else:
+    #         # This condition might not be needed anymore, but kept for safety
+    #         self.collection.insert_one({"sessionId": sessionId, "current_step": start_step})
+    #         return start_step
  
 
 
 
-    def get_current_step_redis(self, sessionId, manualId):
+    def get_current_step_redis(self, sessionId, manualId,task_graph):
         key = f"vip:{sessionId}:{manualId}:state"
         try:
-            start_step = list(self.task_graph.get_graph().keys())[0]
+            start_step = list(task_graph.get_graph().keys())[0]
         except:
             start_step = 0
         # Check if the key exists in Redis
-        if not redis_client.exists(key):
+        if not self.redis_client.exists(key):
             # If not, set the initial step in Redis
-            redis_client.set(key, start_step)
+            self.redis_client.set(key, start_step)
             return start_step
         else:
             # If the key exists, retrieve the current step
-            current_step = int(redis_client.get(key))
+            current_step = int(self.redis_client.get(key))
             return current_step
 
 
 
 
-    def update_step(self, sessionId, step):
-        # Updates the current_step. Assumes document exists, but handles the case where current_step might not.
-        self.collection.update_one(
-            {"sessionId": sessionId},
-            {"$set": {"current_step": step}}
-        )
+    # def update_step(self, sessionId, step):
+    #     # Updates the current_step. Assumes document exists, but handles the case where current_step might not.
+    #     self.collection.update_one(
+    #         {"sessionId": sessionId},
+    #         {"$set": {"current_step": step}}
+    #     )
 
 
 
@@ -111,7 +108,7 @@ class TaskManager:
     def update_step_redis(self, sessionId, manualId, step):
         key = f"vip:{sessionId}:{manualId}:state"
         # Updates the current_step in Redis
-        redis_client.set(key, step)
+        self.redis_client.set(key, step)
 
 
 
@@ -120,20 +117,21 @@ class TaskManager:
  
 
 
-    def reset_step(self, sessionId):
-        self.update_step(sessionId, 1)
+    # def reset_step(self, sessionId):
+    #     self.update_step(sessionId, 1)
  
 
 
-    def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes,things_present,data):
+    def get_next_step(self, sessionId, sourceId, task, manualId, frame_bytes,things_present,data, steps):
+        task_graph = TaskGraph(steps)
         manual = self.mongodb.get_document_by_id(document_id=int(manualId))
 
         # current_step = self.get_current_step(sessionId, sourceId)
-        current_step = self.get_current_step_redis(sessionId, manualId)
+        current_step = self.get_current_step_redis(sessionId, manualId, task_graph)
 
-        total_steps = len(self.steps)
+        total_steps = len(steps)
 
-        next_step = self.task_graph.get_next(current_step)
+        next_step = task_graph.get_next(current_step)
         self.model = manual["model"]
         if len(manual["steps"])==1:
             step_details=manual["steps"][0]
@@ -191,7 +189,7 @@ class TaskManager:
                 if int(manualId) == 19 and step_details["_id"]==4:
                     print("In manualId 19")
                     key = f"pose:{sessionId}:{manualId}:feedback"
-                    feedback = (redis_client.get(key)).decode('utf-8')
+                    feedback = (self.redis_client.get(key)).decode('utf-8')
                 message = {
                     "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
@@ -290,7 +288,7 @@ class TaskManager:
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
                     # )
-                    return self.steps[1]
+                    return steps[1]
                     
         elif task == 0 or task != current_step:
             if not self.model:
@@ -452,7 +450,7 @@ class TaskManager:
                     #     value=json.dumps(message).encode("utf-8"),
                     # )
                     logger.debug(current_step)
-                    return self.steps[current_step]
+                    return steps[current_step]
         elif task == current_step:
             logger.debug(next_step)
             if not self.model:
@@ -615,10 +613,12 @@ class TaskManager:
                         #     value=json.dumps(message).encode("utf-8"),
                         # )
                         logger.debug(next_step)
-                        return self.steps.get(next_step, "Please perform the next step.")
+                        return steps.get(next_step, "Please perform the next step.")
                     else:
                         return "Well Done! Your task is completed. Please confirm to start over."
 
     def close(self):
         self.client.close()
         self.mongodb.close()
+        self.redis_client.close()
+        
