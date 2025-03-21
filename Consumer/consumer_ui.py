@@ -6,7 +6,7 @@ import json
 import traceback
 from datetime import datetime
 from kafka import KafkaConsumer
-from model.pose_test_redis import Pose
+from model.pose_test_redis_ui import Pose
 from Config.settings import Settings
 import multiprocessing
  
@@ -51,20 +51,20 @@ async def process_kafka_message(message):
         with global_state.lock:
             current_frame_no = global_state.frame_no
             global_state.frame_no += 1
-        print("UI Time Stamp:", current_frame_no, ":", message.value.get("timeStamp"))
-        print("Producer Time Stamp:", current_frame_no, ":", message.value.get("prodRecvTimeStamp"))
+        # print("UI Time Stamp:", current_frame_no, ":", message.value.get("timeStamp"))
+        # print("Producer Time Stamp:", current_frame_no, ":", message.value.get("prodRecvTimeStamp"))
 
-        print("Message In Consumer:start", current_frame_no, ":", datetime.now())
+        # print("Message In Consumer:start", current_frame_no, ":", datetime.now())
         manual_id = message.value.get("manualId")
-        if int(manual_id) == 19:  # Process only relevant messages
+        if int(manual_id) in {19, 23}:   # Process only relevant messages
             logging.info(f"Processing frame {current_frame_no} for manualId {manual_id}")
- 
+            # print(message.value)
             # Submit tasks asynchronously
             loop = asyncio.get_event_loop()
             loop.run_in_executor(
                 executor,
                 handle_input_data,
-                message.value.get("frameUri"),
+                message.value.get("poseLandMarks"),
                 message.value.get("sourceId"),
                 message.value.get("sessionId"),
                 manual_id,
@@ -107,9 +107,9 @@ def handle_input_data(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         frame, results, things_present, start_time = pose_obj._process_pose_detection(
             file, sourceId, sessionId, manualId, frame_no
         )
- 
-        # Run Annotation & Squat Analysis in Parallel
-        executor.submit(pose_obj.draw_annotations, frame, results, sourceId, sessionId, manualId, start_time, frame_no, timeStamp)
+        print(things_present)
+        # # Run Annotation & Squat Analysis in Parallel
+        # executor.submit(pose_obj.draw_annotations, frame, results, sourceId, sessionId, manualId, start_time, frame_no, timeStamp)
         executor.submit(pose_obj.process_squat_analysis, sessionId, frame, things_present, sourceId, manualId, results, frame_no)
  
         logging.info(f"Frame {frame_no} processing completed.")

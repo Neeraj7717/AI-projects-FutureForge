@@ -293,12 +293,10 @@ class TaskManager:
         elif task == 0 or task != current_step:
             if not self.model:
                 for step in manual["steps"]:
-                    if step["_id"]==current_step:
-                        step_details=step
+                    if step["_id"] == current_step:
+                        step_details = step
                         break
 
-                # step_details = manual["steps"][current_step - 1]
-                # self.mongodb.add_end_time(sessionId, next_step)
                 logger.debug(step_details["text"])
                 message = {
                     "stepId": str(step_details["_id"]),
@@ -308,19 +306,15 @@ class TaskManager:
                     "step": step_details["text"],
                     "status": "inProgress",
                     "endTime": "",
-                    "audioUrl":"",
+                    "audioUrl": "",
                     "contextUrl": step_details["contextUrl"],
-                    "contextType":step_details["contextType"],
+                    "contextType": step_details["contextType"],
                     "repetition": 0,
                     "feedback": "",
                     "feedbackUrl": "",
                     "startTime": ""
                 }
 
-                # self.producer.send(
-                #     video_instruction_kafka_topic,
-                #     value=json.dumps(message).encode("utf-8"),
-                # )
                 steps_mongo = {
                     "sessionId": sessionId,
                     "manualId": manualId,
@@ -336,23 +330,24 @@ class TaskManager:
                 try:
                     def get_items(step_id, manual_id):
                         return data[step_id]
-                    things_present=list(set(things_present))
-                    true_items=get_items(int(current_step),int(manualId))[:]
+                    things_present = list(set(things_present))
+                    true_items = get_items(int(current_step), int(manualId))[:]
 
-                    if task!=0:
+                    if task != 0:
                         if "text_based_model" in things_present:
-                            if step_details["contextType"]!="emt":
-                                Text="For the more information please look into demo image."
+                            if step_details["contextType"] != "emt":
+                                Text = "For the more information please look into demo image."
                             else:
-                                Text="The answer you provided is incorrect"
+                                Text = "The answer you provided is incorrect"
+
                         else:
-                            true_items=get_items(int(current_step),int(manualId))[:]
+                            true_items = get_items(int(current_step), int(manualId))[:]
                             if "Person" in true_items:
                                 true_items.remove("Person")
                             if "Person" in things_present:
                                 things_present.remove("Person")
-                            text=step_details["text"]
-                            
+                            text = step_details["text"]
+
                             def format_items(items):
                                 if len(items) > 1:
                                     return ', '.join(items[:-1]) + ' and ' + items[-1]
@@ -367,38 +362,98 @@ class TaskManager:
                                 true_items_text = format_items(true_items)
                                 Text = f"You are holding {items_text} but you have to hold {true_items_text}."
 
-                                
-                            if Text=="You are holding nothing and you should hold nothing.":
-                                Text="Ensure you are having good lighting."    
-                        if manual["_id"] == 19:
+                            if Text == "You are holding nothing and you should hold nothing.":
+                                Text = "Ensure you are having good lighting."
+
+
+                        if manual["_id"] in {19, 23}:
+                            print("thingsPresent", things_present, "---- true_items", true_items)
                             if not things_present:
-                                Text = "I am unable to see you. It might be dark, something could be blocking the camera, or you may not be in front of it. Please check and try again."
-                            elif "rightHandRaised" in true_items and "leftHandRaised" in things_present:
-                                Text = "I can see your left hand raised. Please raise your right hand instead."
-                            elif "rightHandRaised" in true_items and "noHandsRaised" in things_present:
-                                Text = "I don't see any hand raised. Please raise your right hand."
-                            elif "squatInProcess" in things_present:
-                                Text =  "Squats in process."
-                            elif "leftHandRaised" in true_items and "rightHandRaised" in things_present:
-                                Text = "I can see your right hand raised. Please raise your left hand instead."
-                            elif "leftHandRaised" in true_items and "noHandsRaised" in things_present:
-                                Text = "I don't see any hand raised. Please raise your left hand."
-                            elif "rightHandRaised" in true_items:
-                                Text = "Please raise your right hand."
-                            elif "leftHandRaised" in true_items:
-                                Text = "Please raise your left hand."
+                                Text = "I am unable to see you. Please stand in front of the camera."
+                            elif sorted(["personPresent"]) == sorted(true_items):
+                                if "personPresent" in things_present:
+                                    message["status"] = "completed"
+                                    self.mongodb.add_end_time(sessionId, step_details["_id"],message)
+                                    return
+                                
+                            elif sorted(["personPresent","rightHandAbove90"]) == sorted(true_items):
+                                if "rightHandBelow90" in things_present:
+                                    Text = "Raise your right hand above your shoulders"
+                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
+                                    Text = "I can see your left hand raised. Please raise your right hand instead."
+                                elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
+                                    Text = "Your are raising both hands. Please raise your right hand only."
+                                elif "personPresent" in things_present:
+                                    Text = "I don't see any hand raised. Please raise your right hand"
+                                else:
+                                    return
+                            
+                            elif sorted(["personPresent","leftHandAbove90"]) == sorted(true_items):
+                                if "leftHandBelow90" in things_present:
+                                    Text = "Raise your left hand above your shoulders"
+                                elif "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "I can see your right hand raised. Please raise your left hand instead."
+                                elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
+                                    Text = "Your are raising both hands. Please raise your left hand only."
+                                elif "personPresent" in things_present:
+                                    Text = "I don't see any hand raised. Please raise your left hand"
+                                else:
+                                    return
+                                
+                            elif sorted(["personPresent", "liftHandDown"]) == sorted(true_items):
+                                if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "I can see your right hand raised. Please lower your right hand."
+                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
+                                    Text = "I can see your left hand raised. Please lower your left hand"
+                                elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
+                                    Text = "Your are raising both hands. Please lower your hands."
+                                else:
+                                    return
+
+                            elif sorted(["personPresent", "rightHandDown"]) == sorted(true_items):
+                                if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "I can see your right hand raised. Please lower your right hand."
+                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
+                                    Text = "I can see your left hand raised. Please lower your left hand"
+                                elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
+                                    Text = "Your are raising both hands. Please lower your hands."
+                                else:
+                                    return
+                            
+                            elif sorted(["personPresent", "bothHandsAbove90"]) == sorted(true_items):
+                                if "bothHandsBelow90" in things_present:
+                                    Text = "Please raise your both hands above your shoulders"
+                                if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "Raise your both hands above your shoulders"
+                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
+                                    Text = "Raise your both hands above your shoulders"
+                                elif "personPresent" in things_present:
+                                    Text = "Please raise your both hands above your shoulders"
+                                else:
+                                    return
+                            
+                            elif sorted(["personPresent", "noHandRaised"]) == sorted(true_items):
+                                if "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
+                                    Text = "Your are raising both hands. Please lower your hands."
+                                if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "Please lower your hands."
+                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
+                                    Text = "Please lower your hands."
+                                else:
+                                    return
                         
-                        print(f"\n\n{Text}\n\n")    
-                        response  = requests.post(config.t2v_endpoint, json={"text" : Text, "gender": 0})
+
+                        print(f"\n\n{Text}\n\n")
+                        response = requests.post(config.t2v_endpoint, json={"text": Text, "gender": 0})
                         data = json.loads(response.content.decode("utf-8"))
-                        message["audioUrl"]= data["file_path"]
-                        if manual["_id"]== 13:
+                        message["audioUrl"] = data["file_path"]
+                        if manual["_id"] == 13:
                             message["audioUrl"] = "https://cdn-dev.eizen.ai/0/via/pine_labs/audios-hindi/demohindi.mp3"
-                        message["step"]=Text
+                        message["step"] = Text
                     print(f"insert-4________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
-                    if task==0:
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps, message=message)
+                    if task == 0:
                         return step_details["time"]
                 except Exception as e:
                     print(e)
