@@ -9,7 +9,8 @@ from kafka import KafkaConsumer
 from model.pose_test_redis_ui import Pose
 from Config.settings import Settings
 import multiprocessing
- 
+import gc
+import psutil
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
  
@@ -113,9 +114,14 @@ def handle_input_data(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         executor.submit(pose_obj.process_squat_analysis, sessionId, frame, things_present, sourceId, manualId, results, frame_no)
  
         logging.info(f"Frame {frame_no} processing completed.")
+        memory_usage = psutil.virtual_memory().percent
+        if memory_usage > 60:
+            logging.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
+            gc.collect() 
  
     except Exception as e:
         logging.error(f"Error processing frame {frame_no}: {e}")
+        gc.collect()
         traceback.print_exc()
  
 def start_kafka_listener():

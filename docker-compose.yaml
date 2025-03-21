@@ -1,25 +1,12 @@
-version: "3.8"
+version: '3'
+
 services:
   via-api:
-    build: .
-    image: eizen-via-api
-    container_name: eizen-via-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    network_mode: host
+    container_name: via-api
     restart: unless-stopped
-      # network_mode: host
-    # ports:
-    #   - "8079:8079"
-    env_file:
-      - .env
     volumes:
       - ./checkpoints:/usr/app/checkpoints
-    environment:
-      - CUDA_VISIBLE_DEVICES=0 # Use first GPU only
-      - TF_FORCE_GPU_ALLOW_GROWTH=true # Prevent TensorFlow from using all GPU memory
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
