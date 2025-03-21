@@ -121,6 +121,7 @@ def handle_input_data(file, sourceId, sessionId, manualId, frame_no, timeStamp):
  
     except Exception as e:
         logging.error(f"Error processing frame {frame_no}: {e}")
+        logging.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
         gc.collect()
         traceback.print_exc()
  
