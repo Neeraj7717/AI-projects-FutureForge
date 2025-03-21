@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    network_mode: host
+    image: eizen-via-api
     container_name: via-api
     restart: unless-stopped
     volumes:

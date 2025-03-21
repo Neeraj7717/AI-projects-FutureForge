@@ -1,17 +1,14 @@
-import base64
 import json
 import logging
 import time
 import traceback
 import numpy as np
 import pymongo
-import cv2
 from datetime import datetime
 import mediapipe as mp
 import concurrent.futures
 from kafka import KafkaProducer
 from Config.settings import Settings
-from utils.pose_analytics_redis_ui import analyze_live_squat, close_redis_connection_pose_utils
 from instruction.instructions_graph_pose_redis import TaskManager
 import redis
 import os
