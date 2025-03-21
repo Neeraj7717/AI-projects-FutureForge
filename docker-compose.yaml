@@ -6,15 +6,12 @@ services:
     container_name: eizen-via-api
     restart: unless-stopped
       # network_mode: host
-    ports:
-      - "8079:8079"
+    # ports:
+    #   - "8079:8079"
     env_file:
       - .env
     volumes:
       - ./checkpoints:/usr/app/checkpoints
-    mem_limit: 8G
-    memswap_limit: 8G
-    shm_size: 4G
     environment:
       - CUDA_VISIBLE_DEVICES=0 # Use first GPU only
       - TF_FORCE_GPU_ALLOW_GROWTH=true # Prevent TensorFlow from using all GPU memory
