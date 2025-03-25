@@ -14,7 +14,9 @@ import multiprocessing
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
  
 # Optimized Thread Pool
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() * 2)
+# executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() * 2)
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=5000)
+
  
 # Pose Detection Model
 pose_obj = Pose()

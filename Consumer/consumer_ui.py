@@ -15,7 +15,9 @@ import psutil
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
  
 # Optimized Thread Pool
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() * 2)
+# executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() * 2)
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=2000)
+
  
 # Pose Detection Model
 pose_obj = Pose()

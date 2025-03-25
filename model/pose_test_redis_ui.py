@@ -66,7 +66,7 @@ class Pose:
         # Redis client does not need to be explicitly closed, but ensure no references are kept
         self.redis_client.close() # Clear the reference to the Redis client
         self.task_manager.close()
-        close_redis_connection_pose_utils()
+
 
     def reduce_lag_redis(self, sessionId, manualId):
         """Reduce lag in Redis by decrementing the value."""

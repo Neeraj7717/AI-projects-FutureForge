@@ -149,7 +149,8 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "feedbackUrl": "",
-                    "startTime": ""
+                    "startTime": "",
+                    "stepScore":""
                     }
             steps_mongo = {
                     "sessionId": sessionId,
@@ -161,10 +162,11 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": ""
+                    "feedbackUrl": "",
+                    "stepScore":100.0
                 }
             print(f"insert-1________________________")
-            self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+            self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
             message["status"]="completed"
             self.mongodb.add_end_time(sessionId, step_details["_id"],message)
 
@@ -186,10 +188,10 @@ class TaskManager:
                 logger.debug(step_details["text"])
                 # print(manualId, type(manualId))
                 # print(step_details["_id"], type(step_details["_id"]))
-                if int(manualId) == 19 and step_details["_id"]==4:
-                    print("In manualId 19")
-                    key = f"pose:{sessionId}:{manualId}:feedback"
-                    feedback = (self.redis_client.get(key)).decode('utf-8')
+                # if int(manualId) == 19 and step_details["_id"]==4:
+                #     print("In manualId 19")
+                #     key = f"pose:{sessionId}:{manualId}:feedback"
+                #     feedback = (self.redis_client.get(key)).decode('utf-8')
                 message = {
                     "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
@@ -204,7 +206,8 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": feedback,
                     "feedbackUrl": feedbackUrl,
-                    "startTime": ""
+                    "startTime": "",
+                    "stepScore":""
                     }
                 self.mongodb.add_end_time(sessionId, current_step,message)
                 step_details = manual["steps"][-1]
@@ -222,7 +225,8 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": feedback,
                     "feedbackUrl": feedbackUrl,
-                    "startTime": ""
+                    "startTime": "",
+                    "stepScore":""
                 }
                 steps_mongo = {
                     "sessionId": sessionId,
@@ -234,10 +238,12 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": feedback,
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": feedbackUrl
+                    "feedbackUrl": feedbackUrl,
+                    "stepScore":100.0
                 }
                 print(f"insert-2________________________")
-                self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+
                 message["status"]="completed"
                 self.mongodb.add_end_time(sessionId, step_details["_id"],message)
                 # self.producer.send(
@@ -262,7 +268,8 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": ""
+                    "feedbackUrl": "",
+                    "stepScore":100.0
                     }
 
                     message = {
@@ -279,11 +286,13 @@ class TaskManager:
                         "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
-                        "startTime": ""
+                        "startTime": "",
+                        "stepScore":""
                     }
                     print(f"insert-3________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
@@ -312,7 +321,8 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "feedbackUrl": "",
-                    "startTime": ""
+                    "startTime": "",
+                    "stepScore":""
                 }
 
                 steps_mongo = {
@@ -325,7 +335,9 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": ""
+                    "feedbackUrl": "",
+                    "stepScore":100.0
+                    
                 }
                 try:
                     def get_items(step_id, manual_id):
@@ -369,7 +381,7 @@ class TaskManager:
                         if manual["_id"] in {19, 23}:
                             print("thingsPresent", things_present, "---- true_items", true_items)
                             if not things_present:
-                                Text = "I am unable to see you. Please stand in front of the camera."
+                                Text = "I can't see you. Please stand in front of the camera."
                             elif sorted(["personPresent"]) == sorted(true_items):
                                 if "personPresent" in things_present:
                                     message["status"] = "completed"
@@ -380,9 +392,9 @@ class TaskManager:
                                 if "rightHandBelow90" in things_present:
                                     Text = "Raise your right hand above your shoulders"
                                 elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
-                                    Text = "I can see your left hand raised. Please raise your right hand instead."
+                                    Text = "I see your left hand raised. Please raise your right hand instead."
                                 elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
-                                    Text = "Your are raising both hands. Please raise your right hand only."
+                                    Text = "Your are raising both hands. Please raise only your right hand."
                                 elif "personPresent" in things_present:
                                     Text = "I don't see any hand raised. Please raise your right hand"
                                 else:
@@ -392,9 +404,9 @@ class TaskManager:
                                 if "leftHandBelow90" in things_present:
                                     Text = "Raise your left hand above your shoulders"
                                 elif "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
-                                    Text = "I can see your right hand raised. Please raise your left hand instead."
+                                    Text = "I see your right hand raised. Please raise your left hand instead."
                                 elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
-                                    Text = "Your are raising both hands. Please raise your left hand only."
+                                    Text = "Your are raising both hands. Please raise only your left hand."
                                 elif "personPresent" in things_present:
                                     Text = "I don't see any hand raised. Please raise your left hand"
                                 else:
@@ -402,9 +414,9 @@ class TaskManager:
                                 
                             elif sorted(["personPresent", "liftHandDown"]) == sorted(true_items):
                                 if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
-                                    Text = "I can see your right hand raised. Please lower your right hand."
+                                    Text = "I see your right hand raised. Please lower your right hand."
                                 elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
-                                    Text = "I can see your left hand raised. Please lower your left hand"
+                                    Text = "I see your left hand raised. Please lower your left hand"
                                 elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
                                     Text = "Your are raising both hands. Please lower your hands."
                                 else:
@@ -412,9 +424,9 @@ class TaskManager:
 
                             elif sorted(["personPresent", "rightHandDown"]) == sorted(true_items):
                                 if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
-                                    Text = "I can see your right hand raised. Please lower your right hand."
+                                    Text = "I see your right hand raised. Please lower your right hand."
                                 elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
-                                    Text = "I can see your left hand raised. Please lower your left hand"
+                                    Text = "I see your left hand raised. Please lower your left hand"
                                 elif "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
                                     Text = "Your are raising both hands. Please lower your hands."
                                 else:
@@ -422,13 +434,15 @@ class TaskManager:
                             
                             elif sorted(["personPresent", "bothHandsAbove90"]) == sorted(true_items):
                                 if "bothHandsBelow90" in things_present:
-                                    Text = "Please raise your both hands above your shoulders"
-                                if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
-                                    Text = "Raise your both hands above your shoulders"
-                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
-                                    Text = "Raise your both hands above your shoulders"
+                                    Text = "Please raise both hands above your shoulders."
+                                elif "rightHandAbove90" in things_present and "leftHandBelow90" in things_present:
+                                    Text = "I see your right hand raised. Please raise your left hand as well."
+                                elif "leftHandAbove90" in things_present and "rightHandBelow90" in things_present:
+                                    Text = "I see your left hand raised. Please raise your right hand as well."
+                                elif "rightHandBelow90" in things_present or "leftHandBelow90" in things_present:
+                                    Text = "Raise both hands fully above your shoulders."
                                 elif "personPresent" in things_present:
-                                    Text = "Please raise your both hands above your shoulders"
+                                    Text = "Please raise both hands above your shoulders."
                                 else:
                                     return
                             
@@ -452,7 +466,8 @@ class TaskManager:
                         message["step"] = Text
                     print(f"insert-4________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps, message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps, message=message, things_present=things_present, manual_id=manualId)
+
                     if task == 0:
                         return step_details["time"]
                 except Exception as e:
@@ -483,7 +498,8 @@ class TaskManager:
                         "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
-                        "startTime": ""
+                        "startTime": "",
+                        "stepScore":""
                     }
                     steps_mongo = {
                     "sessionId": sessionId,
@@ -495,11 +511,13 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": ""
+                    "feedbackUrl": "",
+                    "stepScore":100.0
                     }
                     print(f"insert-5________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
@@ -532,7 +550,8 @@ class TaskManager:
                         "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
-                        "startTime": ""
+                        "startTime": "",
+                        "stepScore":""
                         }
                     self.mongodb.add_end_time(sessionId, current_step,message)
                     for step in manual["steps"]:
@@ -554,7 +573,8 @@ class TaskManager:
                         "repetition": 0,
                         "feedback": "",
                         "feedbackUrl": "",
-                        "startTime": ""
+                        "startTime": "",
+                        "stepScore":""
                         }
                     steps_mongo = {
                     "sessionId": sessionId,
@@ -566,11 +586,13 @@ class TaskManager:
                     "repetition": 0,
                     "feedback": "",
                     "videoUrl": step_details["url"],
-                    "feedbackUrl": ""
+                    "feedbackUrl": "",
+                    "stepScore":100.0
                     }
                     print(f"insert-6________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
@@ -604,7 +626,8 @@ class TaskManager:
                             "repetition": 0,
                             "feedback": "",
                             "feedbackUrl": "",
-                            "startTime": ""
+                            "startTime": "",
+                            "stepScore":""
                         }
                         self.mongodb.add_end_time(sessionId, current_step,message)
                         for step in manual["steps"]:
@@ -625,7 +648,8 @@ class TaskManager:
                             "repetition": 0,
                             "feedback": "",
                             "feedbackUrl": "",
-                            "startTime": ""
+                            "startTime": "",
+                            "stepScore":""
                         }
                         for step in manual["steps"]:
                             if step["_id"]==next_step:
@@ -646,7 +670,8 @@ class TaskManager:
                             "repetition": 0,
                             "feedback": "",
                             "feedbackUrl": "",
-                            "startTime": ""
+                            "startTime": "",
+                            "stepScore":""
                         }
                         steps_mongo = {
                             "sessionId": sessionId,
@@ -658,11 +683,11 @@ class TaskManager:
                             "repetition": 0,
                             "feedback": "",
                             "videoUrl": step_details["url"],
-                            "feedbackUrl": ""
+                            "feedbackUrl": "",
+                            "stepScore":100.0
                         }
                         print(f"insert-7________________________")
-
-                        self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                        self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
                         # self.producer.send(
                         #     video_instruction_kafka_topic,
                         #     value=json.dumps(message).encode("utf-8"),
