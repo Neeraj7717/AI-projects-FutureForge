@@ -434,25 +434,23 @@ class TaskManager:
                             
                             elif sorted(["personPresent", "bothHandsAbove90"]) == sorted(true_items):
                                 if "bothHandsBelow90" in things_present:
-                                    Text = "Please raise both hands above your shoulders."
-                                elif "rightHandAbove90" in things_present and "leftHandBelow90" in things_present:
-                                    Text = "I see your right hand raised. Please raise your left hand as well."
-                                elif "leftHandAbove90" in things_present and "rightHandBelow90" in things_present:
-                                    Text = "I see your left hand raised. Please raise your right hand as well."
-                                elif "rightHandBelow90" in things_present or "leftHandBelow90" in things_present:
-                                    Text = "Raise both hands fully above your shoulders."
+                                    Text = "Please raise your both hands above the shoulders."
+                                elif "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "I see your right hand raised. Please raise your both hands above the shoulders."
+                                elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
+                                    Text = "I see your left hand raised. Please raise your both hands above the shoulders."
                                 elif "personPresent" in things_present:
-                                    Text = "Please raise both hands above your shoulders."
+                                    Text = "You are not raising your hands. Please raise your both hands above the shoulders."
                                 else:
                                     return
                             
                             elif sorted(["personPresent", "noHandRaised"]) == sorted(true_items):
                                 if "bothHandsBelow90" in things_present or "bothHandsAbove90" in things_present:
                                     Text = "Your are raising both hands. Please lower your hands."
-                                if "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
-                                    Text = "Please lower your hands."
+                                elif "rightHandAbove90" in things_present or "rightHandBelow90" in things_present:
+                                    Text = "I see your right hand raised. Please lower your right hand."
                                 elif "leftHandAbove90" in things_present or "leftBelowAbove90" in things_present:
-                                    Text = "Please lower your hands."
+                                    Text = "I see your left hand raised. Please lower your left hand."
                                 else:
                                     return
                         
