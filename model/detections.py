@@ -739,13 +739,16 @@ class Detections:
         #     pass
         try:
             data=self.sessionSteps.find_one({"sessionId":sessionId})
-            if data==None:
-                document = self.monualCollection.find_one({"_id": int(manualId)})
-                steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
-                task_manager = TaskManager(steps=steps)
+            try:
+                if data==None:
+                    document = self.monualCollection.find_one({"_id": int(manualId)})
+                    steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
+                    task_manager = TaskManager(steps=steps)
 
-                response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
-
+                    response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
+            except Exception as e:
+                print(e,"error in sending first instruction")
+                traceback.print_exc()
             if len(saved_detections) >= config.continuity and len(set(saved_detections)) == 1:
                 response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
                 data = json.loads(response.content.decode("utf-8"))
@@ -772,6 +775,7 @@ class Detections:
                 self.remove_detection(sessionId) 
         except Exception as e:
             print(e)
+            traceback.print_exc()
     def send_continues_system_updates(self,sessionId,manualId,result_apps,error_message):
         if error_message=="error":
             text_message="I think you are not sharing correct screen please check and share your system monitor screen"

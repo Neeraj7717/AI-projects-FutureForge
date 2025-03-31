@@ -1,0 +1,8 @@
+pymongo
+kafka-python
+redis
+boto3
+mediapipe
+pydantic_settings
+requests
+psutil

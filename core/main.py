@@ -3,7 +3,7 @@ import asyncio
 import datetime
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware  # Import CORSMiddleware
-from model.detections_test_pose import Detections
+from model.detections import Detections
 from model.pose_test_redis import Pose
 from model.gender_model import ProcessFrame
 import uvicorn

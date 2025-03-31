@@ -8,7 +8,6 @@ from Config.settings import Settings
 import json
 import logging
 import traceback
-from utils.pose_analytics import get_final_summary
 import redis
 
 
@@ -147,7 +146,8 @@ class TaskManager:
                     "feedbackUrl": ""
                 }
             print(f"insert-1________________________")
-            self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+            self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+            # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
             message["status"]="completed"
             self.mongodb.add_end_time(sessionId, step_details["_id"],message)
         print(current_step,manual["steps"][-2]["_id"],task)
@@ -165,12 +165,6 @@ class TaskManager:
                         step_details=step
                         break
                 logger.debug(step_details["text"])
-                print(manualId, type(manualId))
-                print(step_details["_id"], type(step_details["_id"]))
-                if int(manualId) == 19 and step_details["_id"]==4:
-                    print("In manualId 19")
-                    feedback, feedbackUrl = get_final_summary(sessionId)
-                    print(feedback, feedbackUrl)
                 message = {
                     "stepId": str(step_details["_id"]),
                     "sessionId": sessionId,
@@ -218,7 +212,9 @@ class TaskManager:
                     "feedbackUrl": feedbackUrl
                 }
                 print(f"insert-2________________________")
-                self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+
                 message["status"]="completed"
                 self.mongodb.add_end_time(sessionId, step_details["_id"],message)
                 # self.producer.send(
@@ -263,7 +259,10 @@ class TaskManager:
                     }
                     print(f"insert-3________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
+
+                    
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
@@ -375,7 +374,8 @@ class TaskManager:
                         message["step"]=Text
                     print(f"insert-4________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
                     if task==0:
                         return step_details["time"]
                 except Exception as e:
@@ -422,7 +422,8 @@ class TaskManager:
                     }
                     print(f"insert-5________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
@@ -491,7 +492,8 @@ class TaskManager:
                     }
                     print(f"insert-6________________________")
 
-                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                    self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
                     # self.producer.send(
                     #     video_instruction_kafka_topic,
                     #     value=json.dumps(message).encode("utf-8"),
@@ -581,7 +583,8 @@ class TaskManager:
                         }
                         print(f"insert-7________________________")
 
-                        self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                        # self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message)
+                        self.mongodb.insert_or_update_data(session_id=sessionId, steps=steps_mongo, total_steps=total_steps,message=message, things_present=things_present, manual_id=manualId)
                         # self.producer.send(
                         #     video_instruction_kafka_topic,
                         #     value=json.dumps(message).encode("utf-8"),

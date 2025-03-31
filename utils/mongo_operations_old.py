@@ -4,8 +4,6 @@ import pymongo
 from Config.settings import Settings
 from pymongo.errors import PyMongoError
 from kafka import KafkaProducer
-import redis
-import traceback
 
 
 config = Settings()
@@ -24,8 +22,6 @@ class MongoDBConnector:
         self.collection_insight = None
         self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
         self.video_instruction_kafka_topic=config.video_instruction_kafka_topic
-        self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
-
         self.connect()
         self.connect_insights()
 
@@ -47,8 +43,7 @@ class MongoDBConnector:
         document = self.collection.find_one({"_id": document_id})
         return document
 
-    def insert_or_update_data(self, session_id, steps, total_steps, message, things_present, manual_id):
-
+    def insert_or_update_data(self, session_id, steps, total_steps,message):
         try:
             # Check if session_id exists
             existing_data = self.collection_insight.find_one({"sessionId": session_id})
@@ -82,7 +77,6 @@ class MongoDBConnector:
                     #     del message["audioUrl"]
                     # del message["contextUrl"]
                     # del message["contextType"]
-
                     self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                     #if int(steps["stepId"]) == total_steps + 1:
                     #    steps_with_time["status"] = "completed"
@@ -111,29 +105,7 @@ class MongoDBConnector:
                 message["status"]="failed"
                 #print(data_to_insert["steps"])
                 #print("\n\n")
-
-                key = f"vip:{session_id}:{manual_id}:state"
-                if self.redis_client.exists(key):
-                    current_step = int(self.redis_client.get(key))
-                else:
-                    current_step = 1
-                key = f"Pose:{session_id}:{manual_id}:{current_step}:thingsPresent"
-                previous_things_present = self.redis_client.get(key)
-                
-                if previous_things_present is None:  # Check if key exists
-                    self.redis_client.set(key, json.dumps(things_present))  # Store the list as a JSON string
-                    data_to_insert["steps"][-1]["repetition"] += 1
-                else:
-                    previous_things_present = json.loads(previous_things_present)
-                    if sorted(previous_things_present) != sorted(things_present):  # Check if lists are different regardless of order
-                        self.redis_client.set(key, json.dumps(things_present))  # Update the list in Redis
-                        data_to_insert["steps"][-1]["repetition"] += 1
-
-                repetition = data_to_insert["steps"][-1]["repetition"]
-                score = round((1 / (int(repetition) + 1)) * 100, 2)
-                data_to_insert["steps"][-1]["stepScore"] = score
-
-
+                data_to_insert["steps"][-1]["repetition"]+=1
                 #print(data_to_insert["steps"][-1])
                 #print("\n\n")
                 
@@ -156,15 +128,12 @@ class MongoDBConnector:
             #print(data_to_insert)
 
         except PyMongoError as e:
-            traceback.print_exc()
             return f"An error occurred while inserting or updating data: {e}"
-        
     def add_end_time(self, session_id, step_id,message):
         try:
             step_id = str(step_id)
             # Find the document with the given sessionId and stepId
             document = self.collection_insight.find_one({"sessionId": session_id})
-
             if document:
                 for step in document["steps"]:
                     #print(step)
@@ -184,21 +153,16 @@ class MongoDBConnector:
                             #     del message["contextType"]
                             #print(document)
                             message["repetition"]=document['steps'][-1]["repetition"]
-                            message["stepScore"]=str(document['steps'][-1]["stepScore"])
                             #print(self.video_instruction_kafka_topic,message)
                             self.producer.send(self.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                             # Update status to "completed"
                             if step["status"] != "completed":
                                 step["status"] = "completed"
                         break
-
-
-            
                 # Update the document with the modified steps
                 self.collection_insight.replace_one({"_id": document["_id"]}, document)
             else:
                 return "Document not found for the given sessionId and stepId."
-            
 
         except PyMongoError as e:
             return f"An error occurred while adding endTime: {e}"

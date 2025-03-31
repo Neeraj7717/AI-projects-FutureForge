@@ -9,4 +9,4 @@ RUN apt-get update && \
 
 COPY . /usr/app
 ENV PYTHONPATH /usr/app
-CMD ["python3","Consumer/consumer_ui.py"]
+CMD ["python3","core/main.py"]

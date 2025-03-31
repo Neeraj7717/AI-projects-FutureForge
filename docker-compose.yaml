@@ -8,5 +8,8 @@ services:
     image: eizen-via-api
     container_name: via-api
     restart: unless-stopped
+    ports:  # Corrected from "port" to "ports"
+      - "8751:8751"
     volumes:
       - ./checkpoints:/usr/app/checkpoints
+
