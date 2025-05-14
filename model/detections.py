@@ -596,9 +596,9 @@ class Detections:
                 current_question=data['steps'][-1]["stepId"]
                 for i in answer["steps"]:
                     detection_logger.info(f"Current question: {int(current_question)}, ID: {i['_id']}")
-                    response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
-                    similarity = json.loads(response.content.decode("utf-8"))["similarity"]
-                    
+                    #response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
+                    #similarity = json.loads(response.content.decode("utf-8"))["similarity"]
+                    similarity = 1
                     if int(current_question)==i["_id"]:
                         document = self.monualCollection.find_one({"_id": int(manualId)})
                         steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
