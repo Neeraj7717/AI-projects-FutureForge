@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  via-api-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile3
+    image: eizen-via-api-consumer
+    container_name: via-api-consumer
+    restart: unless-stopped
+    volumes:
+      - ./checkpoints:/usr/app/checkpoints
+

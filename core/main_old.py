@@ -1,31 +1,18 @@
 import argparse
 import asyncio
 import datetime
-import concurrent.futures
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware  # Import CORSMiddleware
-from model.detections_test_pose import Detections
+from model.detections import Detections
 from model.pose_test_redis import Pose
 from model.gender_model import ProcessFrame
 import uvicorn
-import traceback
 from pydantic import BaseModel
 from typing import Optional
 from Config.settings import Settings
-import threading
-from memory_profiler import profile
-from contextlib import asynccontextmanager
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup logic (if any) would go here
-    yield
-    # This code runs during shutdown
-    pose_obj.close()
-
-# Create the app with the lifespan context manager
-app = FastAPI(lifespan=lifespan)
+# Create FastAPI app instance
+app = FastAPI()
 
 # Add CORS middleware to allow all origins
 app.add_middleware(
@@ -38,17 +25,8 @@ app.add_middleware(
 
 # Initialize detection model
 detector = Detections()
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=1000)
-pose_obj = Pose()
+pose = Pose()
 gender = ProcessFrame()
-
-
-class GlobalState:
-    def __init__(self):
-        self.frame_no = 1
-        self.lock = threading.Lock()
-
-global_state = GlobalState()
 
 # Load configurations from settings
 config = Settings()
@@ -61,42 +39,6 @@ class Input(BaseModel):
     sourceId: Optional[str] = None
     sessionId: Optional[str] = None
     manualId: Optional[str] = None
-    timeStamp: Optional[str] = None
-
-@app.post("/detect-pose")
-async def detect_pose_endpoint(input_data: Input):
-    try:
-        with global_state.lock:
-            current_frame_no = global_state.frame_no
-            global_state.frame_no += 1
-        print("detect_pose_endpoint:start",current_frame_no,":", datetime.datetime.now())
-        print(input_data.timeStamp)
-        # Run pose detection in a separate thread without blocking
-        future_pose_processing = asyncio.create_task(
-            asyncio.to_thread(pose_obj._process_pose_detection, input_data.file, input_data.sourceId, input_data.sessionId, input_data.manualId, current_frame_no)
-        )
- 
-        async def process_followup_tasks():
-            try:
-                frame, results, things_present, start_time = await future_pose_processing  # Await the task completion
-                # Run the next two tasks in parallel using asyncio.gather
-                await asyncio.gather(
-                    asyncio.to_thread(pose_obj.draw_annotations, frame, results, input_data.sourceId, input_data.sessionId, input_data.manualId, start_time, current_frame_no, input_data.timeStamp),
-                    asyncio.to_thread(pose_obj.process_squat_analysis, input_data.sessionId, frame, things_present, input_data.sourceId, input_data.manualId, results, current_frame_no)
-                )
- 
-            except Exception as e:
-                print(f"Error processing pose detection result: {e}")
-                traceback.print_exc()
- 
-        # Start the follow-up processing asynchronously without blocking response
-        asyncio.create_task(process_followup_tasks())
-        print("detect_pose_endpoint:end",current_frame_no,":", datetime.datetime.now())
-        return {"message": "Pose detection tasks submitted."}  # API responds immediately
-
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
 
 @app.post("/detect")
 async def detect(input_data: Input):
@@ -136,6 +78,42 @@ async def detector_action_detector(file, sourceId, sessionId, manualId):
     await asyncio.sleep(0)  # Simulate some asynchronous task
     await detector.action_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
 
+
+@app.post("/detect-pose")
+async def detect(input_data: Input):
+    """
+    Endpoint for performing pose detections.
+
+    Args:
+        input_data (Input): Input data containing file path, sourceId, sessionId, and manualId.
+
+    """
+    # Extract input data
+    a=datetime.datetime.now()
+    file = input_data.file
+    sourceId = input_data.sourceId
+    sessionId = input_data.sessionId
+    manualId = input_data.manualId
+    
+    # Perform hand detection
+    asyncio.create_task(pose_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId))
+
+    # return {"output": []}
+
+async def pose_detector(file, sourceId, sessionId, manualId):
+    """
+    Asynchronous function to perform pose detection.
+    
+    Args:
+        file (str): File path.
+        sourceId (str): Source ID.
+        sessionId (str): Session ID.
+        manualId (str): Manual ID.
+    """
+    
+    # Perform hand detection (Replace with your actual implementation)
+    await asyncio.sleep(0)  # Simulate some asynchronous task
+    await pose.pose_detector(file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
 
 @app.post("/detect-gender")
 async def detect(input_data: Input):

@@ -36,13 +36,12 @@ consumer = KafkaConsumer(
     'via-frame',
     bootstrap_servers=config.kafka_url,
     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-    auto_offset_reset='latest',  # Process latest frames only
-    enable_auto_commit=True,  # Commit offsets automatically
+    auto_offset_reset='latest',
+    enable_auto_commit=True,
     group_id='vip-consumer-test',
-    fetch_max_bytes=1048576,  # Fetch max 1MB data at once
-    max_partition_fetch_bytes=524288,  # Fetch max 512KB per partition
-    session_timeout_ms=30000  # Session timeout for consumer group
-    # linger_ms is not a configuration in this context
+    fetch_max_bytes=1048576,
+    max_partition_fetch_bytes=524288,
+    session_timeout_ms=30000
 )
  
 async def process_kafka_message(message):
@@ -60,7 +59,7 @@ async def process_kafka_message(message):
         # print("Message In Consumer:start", current_frame_no, ":", datetime.now())
         manual_id = message.value.get("manualId")
         if int(manual_id) in {19, 23}:   # Process only relevant messages
-            logging.info(f"Processing frame {current_frame_no} for manualId {manual_id}")
+            logging.info(f"Recivied frame {current_frame_no} for manualId {manual_id}")
             # print(message.value)
             # Submit tasks asynchronously
             loop = asyncio.get_event_loop()
@@ -104,13 +103,10 @@ def handle_input_data(file, sourceId, sessionId, manualId, frame_no, timeStamp):
     Handles the frame processing asynchronously.
     """
     try:
-        logging.info(f"Processing frame {frame_no}...")
- 
         # Pose detection (preferably on GPU)
         frame, results, things_present, start_time = pose_obj._process_pose_detection(
             file, sourceId, sessionId, manualId, frame_no
         )
-        print(things_present)
         # # Run Annotation & Squat Analysis in Parallel
         # executor.submit(pose_obj.draw_annotations, frame, results, sourceId, sessionId, manualId, start_time, frame_no, timeStamp)
         executor.submit(pose_obj.process_squat_analysis, sessionId, frame, things_present, sourceId, manualId, results, frame_no)

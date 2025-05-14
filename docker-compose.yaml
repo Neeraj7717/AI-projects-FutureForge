@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   via-api:
     build:
@@ -8,8 +6,10 @@ services:
     image: eizen-via-api
     container_name: via-api
     restart: unless-stopped
-    ports:  # Corrected from "port" to "ports"
-      - "8751:8751"
     volumes:
       - ./checkpoints:/usr/app/checkpoints
-
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.50'
+          memory: 1g

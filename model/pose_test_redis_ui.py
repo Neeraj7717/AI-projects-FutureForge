@@ -32,32 +32,39 @@ console_handler.setFormatter(formatter)
 pose_logger.addHandler(console_handler)
 
 class Pose:
-    """Class for performing pose detection."""
-
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Pose, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
-        """Initialize pose detection model."""
-        self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
-        self.db = self.client[config.stateless_db]  # Use or create a database
-        self.db1 = self.client[config.database_name]
-        self.collection = self.db[config.stateless_collection_detections]
-        self.lagcollection = self.db["lag"]
-        self.stepcollection = self.db["state"]
-        self.sessionSteps = self.db1["sessionSteps"]
-        self.monualCollection = self.db1["manual"]
-        self.producer = KafkaProducer(bootstrap_servers=config.kafka_url)
-        self.pose_model = pose.Pose(static_image_mode=False,         # Video mode for continuous tracking
-                                    model_complexity=1,              # Increased to 1 for better accuracy while still maintaining speed
-                                    smooth_landmarks=True,           # Enable built-in smoothing
-                                    enable_segmentation=False,       # Keep disabled for speed
-                                    min_detection_confidence=0.4,    # Standard detection confidence
-                                    min_tracking_confidence=0.2      # Lower tracking confidence to maintain detection between frames
-                                )
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-        self.fps = config.fps
-        self.task_manager = TaskManager()
-        self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
-        # Store manual data in a dictionary
-        self.manual_data_cache = {}
+        if not self._initialized:
+            self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
+            self.db = self.client[config.stateless_db]  # Use or create a database
+            self.db1 = self.client[config.database_name]
+            self.collection = self.db[config.stateless_collection_detections]
+            self.lagcollection = self.db["lag"]
+            self.stepcollection = self.db["state"]
+            self.sessionSteps = self.db1["sessionSteps"]
+            self.monualCollection = self.db1["manual"]
+            self.producer = KafkaProducer(bootstrap_servers=config.kafka_url)
+            self.pose_model = pose.Pose(static_image_mode=False,         # Video mode for continuous tracking
+                                        model_complexity=1,              # Increased to 1 for better accuracy while still maintaining speed
+                                        smooth_landmarks=True,           # Enable built-in smoothing
+                                        enable_segmentation=False,       # Keep disabled for speed
+                                        min_detection_confidence=0.4,    # Standard detection confidence
+                                        min_tracking_confidence=0.2      # Lower tracking confidence to maintain detection between frames
+                                    )
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+            self.fps = config.pose_fps
+            self.task_manager = TaskManager()
+            self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
+            # Store manual data in a dictionary
+            self.manual_data_cache = {}
+        self._initialized = True
 
     def close(self):
         """Close MongoDB and executor to prevent memory leaks."""
@@ -224,7 +231,7 @@ class Pose:
     def _process_pose_detection(self, landmarks, sourceId, sessionId, manualId, frame_no):
         """Internal function to perform the core pose detection logic."""
         try:
-            pose_logger.info(f"_process_pose_detection:start:---{frame_no}---:{datetime.now()}")
+            # pose_logger.info(f"_process_pose_detection:start:---{frame_no}---:{datetime.now()}")
             
             start_time = time.time()
             # print("Landmarks:", landmarks, "\n", "Landmarks type", type(landmarks))
@@ -242,7 +249,7 @@ class Pose:
                 hand_status = self.detect_raised_hands(landmarks, frame_shape)
                 if hand_status is not None:
                     things_present.append(hand_status)
-            pose_logger.info(f"_process_pose_detection:end---{frame_no}---:{datetime.now()}")
+            # pose_logger.info(f"_process_pose_detection:end---{frame_no}---:{datetime.now()}")
             print("Things Present", sorted(things_present))
             return frame_shape, landmarks, sorted(things_present), start_time  # Return required data
 
@@ -254,7 +261,7 @@ class Pose:
     def process_squat_analysis(self, sessionId, frame, things_present, sourceId, manualId, results, frame_no):
         """Handle squat analysis in a separate thread"""
         try:
-            pose_logger.info(f"process_squat_analysis:start:---{frame_no}---:{datetime.now()}")
+            # pose_logger.info(f"process_squat_analysis:start:---{frame_no}---:{datetime.now()}")
 
             overall_start_time = time.time()
             key = f"vip:{sessionId}:{manualId}:state"
@@ -267,7 +274,7 @@ class Pose:
                     print("is right Down", is_right_down)
                     if is_right_down is not None:
                         updated_things_present.append(is_right_down)
-                    pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
+                    # pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
                     print("Updated Things Present", updated_things_present)
                     self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(updated_things_present))
                 elif current_step == 5:
@@ -276,7 +283,7 @@ class Pose:
                     print("is left down", is_left_down)
                     if is_left_down is not None:
                         updated_things_present.append(is_left_down)
-                    pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
+                    # pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
                     print("Updated Things Present", updated_things_present)
                     self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(updated_things_present))
                 elif current_step == 7:
@@ -292,7 +299,7 @@ class Pose:
             print
             self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(things_present))
 
-        pose_logger.info(f"process_squat_analysis:end:---{frame_no}---:{datetime.now()}")
+        # pose_logger.info(f"process_squat_analysis:end:---{frame_no}---:{datetime.now()}")
 
     def instruction_graph(self, sourceId, sessionId, manualId, frame, things_present):
         try:

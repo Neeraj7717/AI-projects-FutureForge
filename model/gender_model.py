@@ -20,33 +20,43 @@ import os
 config = Settings()
 
 class AgeGenderRecognition:
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(AgeGenderRecognition, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        self.ages = ['(0-5)', '(6-10)', '(11-15)', '(16-22)', '(23-30)', '(31-48)', '(48-59)', '(60-100)']
-        self.genders = ["Male", "Female"]
-        self.modelMeanValues = (78.4263377603, 87.7689143744, 114.895847746)
+        if not self._initialized:
+            self.ages = ['(0-5)', '(6-10)', '(11-15)', '(16-22)', '(23-30)', '(31-48)', '(48-59)', '(60-100)']
+            self.genders = ["Male", "Female"]
+            self.modelMeanValues = (78.4263377603, 87.7689143744, 114.895847746)
 
-        self.faceNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector_uint8.pb",
-                                           "./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector.pbtxt")
-        self.ageNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/age_detector/age_net.caffemodel",
-                                          "./checkpoints/gender_model_checkpoints/age_detector/age_deploy.prototxt")
-        self.genderNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/gender_detector/gender_net.caffemodel",
-                                             "./checkpoints/gender_model_checkpoints/gender_detector/gender_deploy.prototxt")
+            self.faceNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector_uint8.pb",
+                                               "./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector.pbtxt")
+            self.ageNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/age_detector/age_net.caffemodel",
+                                              "./checkpoints/gender_model_checkpoints/age_detector/age_deploy.prototxt")
+            self.genderNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/gender_detector/gender_net.caffemodel",
+                                                 "./checkpoints/gender_model_checkpoints/gender_detector/gender_deploy.prototxt")
+            self._initialized = True
+            
+            # # Update your model loading in AgeGenderRecognition.__init__
+            # self.faceNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector_uint8.pb",
+            #                             "./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector.pbtxt")
+            # self.faceNet.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+            # self.faceNet.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
-        # # Update your model loading in AgeGenderRecognition.__init__
-        # self.faceNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector_uint8.pb",
-        #                             "./checkpoints/gender_model_checkpoints/face_detector/opencv_face_detector.pbtxt")
-        # self.faceNet.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-        # self.faceNet.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+            # self.ageNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/age_detector/age_net.caffemodel",
+            #                             "./checkpoints/gender_model_checkpoints/age_detector/age_deploy.prototxt")
+            # self.ageNet.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+            # self.ageNet.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
-        # self.ageNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/age_detector/age_net.caffemodel",
-        #                             "./checkpoints/gender_model_checkpoints/age_detector/age_deploy.prototxt")
-        # self.ageNet.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-        # self.ageNet.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
-
-        # self.genderNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/gender_detector/gender_net.caffemodel",
-        #                             "./checkpoints/gender_model_checkpoints/gender_detector/gender_deploy.prototxt")
-        # self.genderNet.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-        # self.genderNet.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+            # self.genderNet = cv2.dnn.readNet("./checkpoints/gender_model_checkpoints/gender_detector/gender_net.caffemodel",
+            #                             "./checkpoints/gender_model_checkpoints/gender_detector/gender_deploy.prototxt")
+            # self.genderNet.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+            # self.genderNet.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
     def getFaceBox(self, frame, confThreshold=0.7):
         frameHeight, frameWidth = frame.shape[:2]
@@ -85,9 +95,19 @@ class AgeGenderRecognition:
         return frame, faceData
 
 class EmotionDetection:
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(EmotionDetection, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        self.feelings = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
-        self.dfFaceEmotions = pd.DataFrame(columns=self.feelings)
+        if not self._initialized:
+            self.feelings = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
+            self.dfFaceEmotions = pd.DataFrame(columns=self.feelings)
+            self._initialized = True
 
     def detect(self, frame, bboxes):
         faceEmotions = []
@@ -116,16 +136,25 @@ class EmotionDetection:
 
 
 class ProcessFrame:
-    def __init__(self):
-        self.ageGenderModel = AgeGenderRecognition()   
-        self.emotionModel = EmotionDetection()
-        self.kafka_url = config.kafka_url
-        self.client = pymongo.MongoClient(config.mongo_connection_string_stateless) 
-        self.db = self.client[config.database_name]
-        self.monualCollection=self.db["manual"]
-        self.sessionSteps=self.db["sessionSteps"]
-        self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ProcessFrame, cls).__new__(cls)
+        return cls._instance
 
+    def __init__(self):
+        if not self._initialized:
+            self.ageGenderModel = AgeGenderRecognition()   
+            self.emotionModel = EmotionDetection()
+            self.kafka_url = config.kafka_url
+            self.client = pymongo.MongoClient(config.mongo_connection_string_stateless) 
+            self.db = self.client[config.database_name]
+            self.monualCollection=self.db["manual"]
+            self.sessionSteps=self.db["sessionSteps"]
+            self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
+            self._initialized = True
 
     def processFrame(self, frame, ageGenderModel, emotionModel):
         print("Processing Frame for Gender detect")

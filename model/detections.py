@@ -26,52 +26,75 @@ import concurrent.futures
 from s3utils import generaloperations
 from utils.llmOperations import QuestionAnswerModel
 from transformers import AutoImageProcessor, AutoModel
+
 # Load configurations from settings
 config = Settings()
- 
-# Configure the root logger to output logs to the terminal
-logging.basicConfig(level=config.log_level, format='%(asctime)s - %(levelname)s - %(message)s')
- 
-# Get the root logger
-logger = logging.getLogger()
- 
-# Add a StreamHandler to the logger to output logs to the terminal
+
+# Configure detection-specific logger
+detection_logger = logging.getLogger('detection')
+detection_logger.setLevel(logging.INFO)
+detection_logger.propagate = False  # Prevent propagation to root logger
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Add console handler
 console_handler = logging.StreamHandler()
-logger.addHandler(console_handler)
- 
+console_handler.setFormatter(formatter)
+detection_logger.addHandler(console_handler)
+
 reader = easyocr.Reader(['en'])
 
  
 class Detections:
     """Class for performing object detection and assigning tasks based on detections."""
- 
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Detections, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
         """Initialize object detection model and other necessary parameters."""
-        with open('Config/viaconfig.yaml', 'r') as file:
-            self.data = yaml.safe_load(file)
+        if not self._initialized:
+            detection_logger.info("Starting model initialization...")
+            with open('Config/viaconfig.yaml', 'r') as file:
+                self.data = yaml.safe_load(file)
 
-        self.model_path = config.path_of_model
-        self.model = YOLO(self.model_path, "v8")
-        self.frames_path = config.frames_path
-        self.kafka_url = config.kafka_url
-        self.ekycmodel=YOLO(config.path_of_ekyc_model, "v8")
-        self.chairmodel=YOLO(config.path_of_chair_model,"v8")
-        self.video_details_kafka_topic = config.video_details_kafka_topic
-        self.shared_path = config.shared_path
-        self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
-        self.db1 = self.client["analytics"]
-        self.db = self.client[config.stateless_db]  # Use or create a database
-        self.collection = self.db[config.stateless_collection_detections]
-        self.lagcollection = self.db["lag"]
-        self.monualCollection=self.db1["manual"]
-        self.sessionSteps=self.db1["sessionSteps"]
-        self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
-        # self.llava = LlavaInference(steps=self.steps)
-        self.api_client = APIClient(config.llava_endpoint)
-        self.contextCollection=self.db1["contexts"]
-        self.device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
-        self.processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
-        self.similarmodel = AutoModel.from_pretrained('facebook/dinov2-small').to(self.device)
+            detection_logger.info("Loading YOLO base model...")
+            self.model_path = config.path_of_model
+            self.model = YOLO(self.model_path, "v8")
+            self.frames_path = config.frames_path
+            self.kafka_url = config.kafka_url
+            
+            detection_logger.info("Loading EKYC model...")
+            self.ekycmodel=YOLO(config.path_of_ekyc_model, "v8")
+            
+            detection_logger.info("Loading Chair model...")
+            self.chairmodel=YOLO(config.path_of_chair_model,"v8")
+            self.video_details_kafka_topic = config.video_details_kafka_topic
+            self.shared_path = config.shared_path
+            self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
+            self.db1 = self.client["analytics_ldev"]
+            self.db = self.client[config.stateless_db]  # Use or create a database
+            self.collection = self.db[config.stateless_collection_detections]
+            self.lagcollection = self.db["lag"]
+            self.monualCollection=self.db1["manual"]
+            self.sessionSteps=self.db1["sessionSteps"]
+            self.producer=KafkaProducer(bootstrap_servers=config.kafka_url)
+            self.fps = config.fps
+            # self.llava = LlavaInference(steps=self.steps)
+            self.api_client = APIClient(config.llava_endpoint)
+            self.contextCollection=self.db1["contexts"]
+            detection_logger.info("Loading DINOv2 model...")
+            self.device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
+            self.processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
+            self.similarmodel = AutoModel.from_pretrained('facebook/dinov2-small').to(self.device)
+            
+            self._initialized = True
+            detection_logger.info("All models loaded successfully!")
         
     def get_manual_name(self,manual_id):
         for model in self.data['models']:
@@ -111,7 +134,7 @@ class Detections:
         # Check if the document with the given sourceId already exists
         existing_document = self.lagcollection.find_one({"sessionId": sessionId})
         
-        print(existing_document["lag"],"=====================================")
+        detection_logger.info(f"Lag: {existing_document['lag']} =====================================")
         lag=existing_document["lag"]
         if existing_document:
             # Check if the sessionId matches the existing one
@@ -130,6 +153,7 @@ class Detections:
         """Store or update detections in MongoDB."""
         # Check if the document with the given sourceId already exists
         existing_document = self.lagcollection.find_one({"sessionId": sessionId})
+        time = time * self.fps
         if existing_document:
             # Check if the sessionId matches the existing one
 
@@ -163,19 +187,25 @@ class Detections:
     
     def send_instruction(self,xyxy,new_width,new_height,sourceId,sessionId,manualId,things_present):
         xyxy=xyxy.tolist()
-        print(type(xyxy))
         key_component=sessionId.encode('utf-8') 
         message = {"sessionId": sessionId, "classes": things_present, "coordinates": list(xyxy),"frameDimensions":[new_width,new_height]}
         try:
             self.producer.send("vip-bounding-box-details",key=key_component, value=json.dumps(message).encode("utf-8"))
             
         except Exception as e:
-            print(f"Error sending message: {str(e)}")
+            detection_logger.error(f"Error sending message: {str(e)}")
             traceback.print_exc()
             pass
-        print({"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
-        print("________________________sending_bounding_boxes_________________________",config.java_endpoint)
-        response  = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
+        
+        log_data = {
+            "sessionId": sessionId,
+            "manualId": manualId,
+            "sourceId": sourceId,
+            "thingsPresent": things_present
+        }
+        detection_logger.info(f"Detection data: {json.dumps(log_data)}")
+        detection_logger.info("Sending bounding boxes to Java endpoint")
+        response = requests.post(config.java_endpoint, json={"sessionId":sessionId,"manualId":manualId,"sourceId":sourceId,"thingsPresent":things_present})
         return
         # lag=self.get_lag(sourceId,sessionId)
         # if lag<=0:
@@ -187,16 +217,16 @@ class Detections:
         #         document = self.monualCollection.find_one({"_id": int(manualId)})
         #         steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
         #         task_manager = TaskManager(steps=steps)                
-        #         print(f"The task number is: {task}") 
+        #         detection_logger.info(f"The task number is: {task}") 
         #         response = task_manager.get_next_step(sessionId, sourceId, task, manualId, "",things_present,map)
-        #         logger.debug(f"Response from graph: {response}")
+        #         detection_logger.debug(f"Response from graph: {response}")
 
 
         #         if response !=0 and response!=None:
 
         #             self.add_lag(sourceId,sessionId,response)
 
-        #         logger.debug(f"Response from graph: {response}")
+        #         detection_logger.debug(f"Response from graph: {response}")
         # else:
 
         #     self.reduce_lag(sourceId,sessionId)
@@ -225,15 +255,15 @@ class Detections:
                 # cv2.imwrite("1.jpg",file)
                 detection_output = self.ekycmodel.predict(source=file, conf=0.25, save=False)   
             except Exception as e:
-                print("ERROR",e)
+                detection_logger.info("ERROR",e)
                 traceback.print_exc()
+                
             dic = vars(detection_output[0])
             names = dic["names"]
-            print(names)
-            # print(names)
+            detection_logger.debug(f"Model class names: {names}")
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[name] for name in detected_class.cls]
-            logger.debug(f"The Detections are {things_present}")
+            detection_logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
             new_height, new_width = file.shape[:2]
@@ -250,9 +280,9 @@ class Detections:
             #     image=cv2.resize(image,(new_width,new_height))
             #     compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
             #     frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-            #     logger.debug("Finished drawing bounding boxes")
+            #     detection_logger.debug("Finished drawing bounding boxes")
             # except Exception as e:
-            #     logger.error(f"Error in CV2 Operations: {e}")
+            #     detection_logger.error(f"Error in CV2 Operations: {e}")
             #     pass
                 
             
@@ -266,14 +296,10 @@ class Detections:
             
                 
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            detection_logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
             return e
         
-
-
-
-
-    
 
     def action_detector(self, file, sourceId, sessionId, manualId):
         """Perform object detection on the provided image file.
@@ -288,6 +314,7 @@ class Detections:
             list: List of objects detected in the image.
         """
         try:
+            detection_logger.info("ACTION DETECTOR")
             # Perform object detection
             header,encoded=file.split(",",1)
             image_bytes = base64.b64decode(encoded)
@@ -302,11 +329,11 @@ class Detections:
             names = dic["names"]
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[name] for name in detected_class.cls]
-            logger.debug(f"The Detections are {things_present}")
+            detection_logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
             new_height, new_width = file.shape[:2]
-
+            detection_logger.info("Completed Detection")
 
             # try:
             #     image = cv2_operations().draw_bounding_boxes(file, xyxy, things_present, "1.jpg")
@@ -318,9 +345,9 @@ class Detections:
             #     image=cv2.resize(image,(new_width,new_height))
             #     compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
             #     frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-            #     logger.debug("Finished drawing bounding boxes")
+            #     detection_logger.debug("Finished drawing bounding boxes")
             # except Exception as e:
-            #     logger.error(f"Error in CV2 Operations: {e}")
+            #     detection_logger.error(f"Error in CV2 Operations: {e}")
             #     pass
                 
             
@@ -331,8 +358,10 @@ class Detections:
                 return
                 
         except Exception as e:
-            print("Error: ", e)
-            logger.error(f"Error occurred: {e}")
+            detection_logger.info(f"Error: {str(e)}")
+            detection_logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
+
             return e
 
     def image_input(self, file, sourceId, sessionId, manualId):
@@ -352,7 +381,7 @@ class Detections:
             cloud_path = '/'.join(file.split('/')[3:])
             local_store_path = file.split('/')[-1]
             file = generaloperations.download_from_s3_bucket(bucket_name, cloud_path, local_store_path)
-            print(f"Downloaded file: {file}")
+            detection_logger.info(f"Downloaded file: {file}")
             # Perform object detection
             # if manualId!=str(4):
             modelname=self.get_manual_name(int(manualId))
@@ -377,7 +406,7 @@ class Detections:
                 if manualId!="16":
                     index = faiss.read_index("vectordb/vector.index")
                     d, i = index.search(vector, 1)
-                    print(i)
+                    detection_logger.info(f"Found similar image at index: {i}")
                     json_file_path = 'vectordb/images.json'
 
                     # Load JSON data
@@ -411,7 +440,7 @@ class Detections:
                 else:
                     index = faiss.read_index("vectordb/orienation_images_vector.index")
                     d, i = index.search(vector, 1)
-                    print(i)
+                    detection_logger.info(f"Found similar image at index: {i}")
                     with open("vectordb/orienation_images_vector.json", 'r') as f:
                         data = json.load(f)
 
@@ -456,7 +485,7 @@ class Detections:
             names = dic["names"]
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[name] for name in detected_class.cls]
-            logger.debug(f"The Detections are {things_present}")
+            detection_logger.debug(f"The Detections are {things_present}")
 
 
 
@@ -472,14 +501,15 @@ class Detections:
 
                 if response !=0 and response != None:
                     self.add_lag(sourceId,sessionId,response)
-                logger.debug(f"Response from graph: {response}")
+                detection_logger.debug(f"Response from graph: {response}")
                 return things_present, response
             
             return things_present
                 
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
-            print(e)
+            detection_logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
+
             return e
  
     
@@ -531,9 +561,10 @@ class Detections:
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
                 frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-                logger.debug("Finished drawing bounding boxes")
+                detection_logger.debug("Finished drawing bounding boxes")
             except Exception as e:
-                logger.error(f"Error in CV2 Operations: {e}")
+                traceback.print_exc()
+                detection_logger.error(f"Error in CV2 Operations: {e}")
                 pass
                 
             
@@ -545,7 +576,8 @@ class Detections:
 
 
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            detection_logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
             return e
  
 
@@ -555,13 +587,15 @@ class Detections:
         try:
             
             answer=self.monualCollection.find_one({"_id":int(manualId)})
-            # print(answer["steps"])
-            print("======================")
+            # detection_logger.info(answer["steps"])
+            detection_logger.info("======================")
             if len(answer["steps"])>1:
+                print(sessionId)
                 data=self.sessionSteps.find_one({"sessionId":sessionId})
+                print(data)
                 current_question=data['steps'][-1]["stepId"]
                 for i in answer["steps"]:
-                    print(int(current_question),i["_id"])
+                    detection_logger.info(f"Current question: {int(current_question)}, ID: {i['_id']}")
                     response  = requests.post(config.text_compare_url, json={"sentence1" : i["answer"], "sentence2": file})
                     similarity = json.loads(response.content.decode("utf-8"))["similarity"]
                     
@@ -571,12 +605,12 @@ class Detections:
                         task_manager = TaskManager(steps=steps)
                         if similarity>0.9:
                             
-                            print("ssssstttttaaaarrrrttt")
+                            detection_logger.info("ssssstttttaaaarrrrttt")
                             response = task_manager.get_next_step(sessionId, sourceId, i["_id"], manualId, "frame_bytes",[],{})
                             return
                         else:
 
-                            print("ffffaaaaiiilllleedddd")
+                            detection_logger.info("ffffaaaaiiilllleedddd")
                             response = task_manager.get_next_step(sessionId, sourceId, -1, manualId, "frame_bytes",["text_based_model"],{})
                             return
             else:
@@ -587,15 +621,12 @@ class Detections:
                     # qamodel = QuestionAnswerModel()
                     # response1 = qamodel.generate_answer(context = context, question = file)
 
-
-                    print(file,"-"*19)
-
                     response1  = requests.post(config.context_based_question_answer, json={
                                                                             "context": context,
                                                                             "question": file
                                                                             })
                     response1 = json.loads(response1.content.decode("utf-8"))
-                    print("Generated Answer:", response1["answer"])
+                    detection_logger.info("Generated Answer:", response1["answer"])
                     # response1={}
                     # response1["answer"]="hello"
                     response  = requests.post(config.t2v_endpoint, json={"text" : response1["answer"], "gender": 0})
@@ -617,13 +648,16 @@ class Detections:
                         "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
                         }
                     self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
-                    print("======")
+                    detection_logger.info("======")
                 except Exception as e:
-                    print(e)
+                    traceback.print_exc()
+                    detection_logger.info(f"Error: {e}")
 
 
         except Exception as e:
-            print(e)
+            traceback.print_exc()
+            detection_logger.info(f"Error: {e}")
+            
 
         
     def chair_action_detector(self, file, sourceId, sessionId, manualId):
@@ -648,20 +682,19 @@ class Detections:
             detection_output = self.chairmodel.predict(source=file, conf=0.25, save=False)   
             dic = vars(detection_output[0])
             names = dic["names"]
-            # print(names)
             detected_class = dic["boxes"].cpu().numpy()
             things_present = [names[name] for name in detected_class.cls]
             detected_things=things_present[:]
-            print("=================",things_present)
+            detection_logger.info(f"================={things_present}")
             try:
                 response  = requests.post(config.action_detection_api, json={"file" : frame_bytes, "sourceId":sourceId,"sessionId": sessionId,"manualId" :manualId})
-                print(response)
                 data = json.loads(response.content.decode("utf-8"))
                 things_present+=data
-                print(things_present)
             except Exception as e:
-                print(e)
-            logger.debug(f"The Detections are {things_present}")
+                detection_logger.info(f"Error: {e}")
+                traceback.print_exc()
+
+            detection_logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
         
@@ -677,9 +710,10 @@ class Detections:
                 image=cv2.resize(image,(new_width,new_height))
                 compressed_frame= zlib.compress(cv2.imencode(".jpg", image)[1])
                 frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-                logger.debug("Finished drawing bounding boxes")
+                detection_logger.debug("Finished drawing bounding boxes")
             except Exception as e:
-                logger.error(f"Error in CV2 Operations: {e}")
+                traceback.print_exc()
+                detection_logger.error(f"Error in CV2 Operations: {e}")
                 pass
                 
             
@@ -687,12 +721,14 @@ class Detections:
             try:
                 producer = KafkaProducer(bootstrap_servers=self.kafka_url)
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"Error in connecting to Kafka instance: {e}")
                 pass
             message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
             try:
                 producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
                 pass
             # Assign task based on detections
@@ -707,16 +743,16 @@ class Detections:
                     document = self.monualCollection.find_one({"_id": int(manualId)})
                     steps = {step["_id"]: step["text"] for step in document["steps"][:-1]}
                     task_manager = TaskManager(steps=steps)                
-                    print(f"The task number is: {task}") 
+                    detection_logger.info(f"The task number is: {task}") 
                     response = task_manager.get_next_step(sessionId, sourceId, task, manualId, frame_bytes,things_present,map)
-                    logger.debug(f"Response from graph: {response}")
+                    detection_logger.debug(f"Response from graph: {response}")
 
 
                     if response !=0 and response!=None:
 
                         self.add_lag(sourceId,sessionId,response)
 
-                    logger.debug(f"Response from graph: {response}")
+                    detection_logger.debug(f"Response from graph: {response}")
             else:
 
                 self.reduce_lag(sourceId,sessionId)
@@ -724,18 +760,19 @@ class Detections:
             return 
                 
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
+            detection_logger.error(f"Error occurred: {e}")
             return e
 
 
     def send_every_instruction(self,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths):
 
-        # print("sending frames and instruction")
+        # detection_logger.info("sending frames and instruction")
         # message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
         # try:
         #     self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
         # except Exception as e:
-        #     print(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+        #     detection_logger.info(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
         #     pass
         try:
             data=self.sessionSteps.find_one({"sessionId":sessionId})
@@ -747,8 +784,9 @@ class Detections:
 
                     response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
             except Exception as e:
-                print(e,"error in sending first instruction")
+                detection_logger.info(f"error in sending first instruction: {e}")
                 traceback.print_exc()
+
             if len(saved_detections) >= config.continuity and len(set(saved_detections)) == 1:
                 response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
                 data = json.loads(response.content.decode("utf-8"))
@@ -768,14 +806,14 @@ class Detections:
                         "startTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
                         "endTime": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
                         }
-                print(message)
                 self.producer.send(config.video_instruction_kafka_topic,value=json.dumps(message).encode("utf-8"))
                 self.remove_detection(sessionId) 
             elif len(set(saved_detections)) > 1:
                 self.remove_detection(sessionId) 
         except Exception as e:
-            print(e)
+            detection_logger.info(f"Error: {e}")
             traceback.print_exc()
+            return e
     def send_continues_system_updates(self,sessionId,manualId,result_apps,error_message):
         if error_message=="error":
             text_message="I think you are not sharing correct screen please check and share your system monitor screen"
@@ -808,9 +846,7 @@ class Detections:
 
     def system_monitor_detection(self, file, sourceId, sessionId, manualId):
         try:
-            print(sourceId, sessionId, manualId)
             self.store_detection("123", 0, sessionId)
-            print(self.get_detection(sessionId),"_____________________continuety")
             if len(self.get_detection(sessionId))>3:
                 self.remove_detection(sessionId) 
                 return
@@ -824,7 +860,6 @@ class Detections:
 
             # Extract relevant information
             result1 = [output[i][1] for i in range(len(output))]
-            print(result1)
             apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","mysqlworkbench","Music"]
             app = ""
             memory_usage = ""
@@ -863,7 +898,9 @@ class Detections:
                 executor.submit(self.send_continues_system_updates,sessionId,manualId,result_apps,error_message)
                 return
         except Exception as e:
-            print(e)
+            detection_logger.info(f"Error: {e}")
+            traceback.print_exc()
+            return e
 
 
 
@@ -876,8 +913,7 @@ class Detections:
             with torch.no_grad():
                 inputs = self.processor(images=file, return_tensors="pt").to(self.device)
                 outputs = self.similarmodel(**inputs)
-        
-            # print(sourceId)
+
             # Extract embeddings
             embeddings = outputs.last_hidden_state
             embeddings = embeddings.mean(dim=1)
@@ -887,10 +923,9 @@ class Detections:
 
             # Search the FAISS index
             index = faiss.read_index("vectordb/vector.index")
-            # print(sessionId)
+
         
             d, i = index.search(vector, 1)
-            # print(i)
             json_file_path = 'vectordb/images.json'
 
             # Load JSON data
@@ -902,21 +937,21 @@ class Detections:
             image_paths = images[i[0][0]]
             # Retrieve object names from the data dictionary
             object_names = data[image_paths]
-            print(image_paths,object_names)
             if object_names!="No object":
                 self.store_detection(sourceId, object_names, sessionId)
             saved_detections = self.get_detection(sessionId)
             
             compressed_frame= zlib.compress(cv2.imencode(".jpg", file)[1])
             frame_bytes = base64.b64encode(compressed_frame).decode("utf-8")
-            print("starting thread")
+            detection_logger.info("starting thread")
             with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
                 # Assign task based on detections
                 executor.submit(self.send_every_instruction,sessionId,frame_bytes,manualId,sourceId,saved_detections,object_names,image_paths)
                 return
         
         except Exception as e:
-            print("error is ",e)
+            traceback.print_exc()
+            detection_logger.info("error is ",e)
 
 
     def assign_task(self, things_present, sourceId, sessionId,manualId):
@@ -936,12 +971,12 @@ class Detections:
             # Example usage:
               # Change this to the desired source ID
             map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
-            # print(map)
+
             things_present=list(set(things_present))
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
             # Converting the filter object to a list and getting the first item
             task = next(matching_keys, -1)
-            # print(f"======{things_present}===={task}==========")
+
             # Store detections in MongoDB
             self.store_detection(sourceId, task, sessionId)
             # Retrieve detections from MongoDB
@@ -957,7 +992,8 @@ class Detections:
                 return None
  
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
+            detection_logger.error(f"Error occurred: {e}")
             return e
     def assign_current_task(self, things_present, sourceId, sessionId,manualId):
         """Perform object detection on the provided image file."""
@@ -976,7 +1012,7 @@ class Detections:
             # Example usage:
               # Change this to the desired source ID
             map = {step['_id']: step['answer'] for step in manual['steps'] if 'answer' in step}
-            # print(map)
+
             things_present=list(set(things_present))
             matching_keys = filter(lambda key: map[key] == sorted(things_present), map)
             # Converting the filter object to a list and getting the first item
@@ -985,7 +1021,8 @@ class Detections:
             return task,map
  
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            traceback.print_exc()
+            detection_logger.error(f"Error occurred: {e}")
             return e
 
 
@@ -1003,7 +1040,7 @@ class Detections:
 
             # Extract relevant information
             result1 = [output[i][1] for i in range(len(output))]
-            print(result1)
+
             apps = ["intellij idea","firefox", "chrome", "java", "teams","webpack","google chrome","postman","docker","terminal","brave browser","finder","code","microsoft teams","musqlworkbench","Music"]
             app = ""
             memory_usage = ""
@@ -1039,6 +1076,8 @@ class Detections:
                 executor.submit(self.send_continues_system_updates,sessionId,manualId,result_apps)
                 return
         except Exception as e:
-            print(e)
+            traceback.print_exc()
+            detection_logger.info(f"Error: {e}")
+            return e
 
 

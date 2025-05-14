@@ -17,3 +17,4 @@ tf-keras
 opencv-python
 redis
 memory_profiler
+langchain_community
