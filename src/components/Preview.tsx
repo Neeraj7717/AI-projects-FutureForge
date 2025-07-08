@@ -15,7 +15,6 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
-  Divider,
 } from '@mui/material';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
