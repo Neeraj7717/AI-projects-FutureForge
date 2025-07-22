@@ -1,0 +1,624 @@
+{
+	"info": {
+		"_postman_id": "social-media-api-collection",
+		"name": "Social Media API",
+		"description": "Complete Postman collection for testing the Social Media API server with all endpoints including authentication, user management, and post operations.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"register"
+							]
+						},
+						"description": "Register a new user account. Returns a JWT token for authentication."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful registration",
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has token\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.token).to.be.a('string');",
+									"    pm.expect(response.token.length).to.be.greaterThan(0);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.user).to.have.property('id');",
+									"    pm.expect(response.user).to.have.property('username');",
+									"    pm.expect(response.user).to.have.property('email');",
+									"    pm.expect(response.user).to.have.property('createdAt');",
+									"});",
+									"",
+									"// Store token for other requests",
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set(\"authToken\", response.token);",
+									"    pm.collectionVariables.set(\"userId\", response.user.id);",
+									"    pm.collectionVariables.set(\"username\", response.user.username);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"login"
+							]
+						},
+						"description": "Authenticate user and get JWT token."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful login",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has token\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.token).to.be.a('string');",
+									"    pm.expect(response.token.length).to.be.greaterThan(0);",
+									"});",
+									"",
+									"// Store token for other requests",
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set(\"authToken\", response.token);",
+									"    pm.collectionVariables.set(\"userId\", response.user.id);",
+									"    pm.collectionVariables.set(\"username\", response.user.username);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				}
+			],
+			"description": "Authentication endpoints for user registration and login."
+		},
+		{
+			"name": "Posts",
+			"item": [
+				{
+					"name": "Create Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"{{postTitle}}\",\n  \"content\": \"{{postContent}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/posts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"posts"
+							]
+						},
+						"description": "Create a new post. Requires authentication."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful post creation",
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has post data\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.post).to.have.property('id');",
+									"    pm.expect(response.post).to.have.property('title');",
+									"    pm.expect(response.post).to.have.property('content');",
+									"    pm.expect(response.post).to.have.property('authorId');",
+									"    pm.expect(response.post).to.have.property('likes');",
+									"});",
+									"",
+									"// Store post ID for other requests",
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set(\"postId\", response.post.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Get All Posts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/posts?page={{page}}&limit={{limit}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"posts"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "{{page}}",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "{{limit}}",
+									"description": "Posts per page"
+								}
+							]
+						},
+						"description": "Get all posts with pagination. No authentication required."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful posts retrieval",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has posts array\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('posts');",
+									"    pm.expect(response.posts).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"Response has pagination info\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('pagination');",
+									"    pm.expect(response.pagination).to.have.property('currentPage');",
+									"    pm.expect(response.pagination).to.have.property('totalPages');",
+									"    pm.expect(response.pagination).to.have.property('totalPosts');",
+									"    pm.expect(response.pagination).to.have.property('postsPerPage');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Posts by Author",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/posts?author={{username}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"posts"
+							],
+							"query": [
+								{
+									"key": "author",
+									"value": "{{username}}",
+									"description": "Filter by author username"
+								}
+							]
+						},
+						"description": "Get posts filtered by author username."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Post",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/posts/{{postId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"posts",
+								"{{postId}}"
+							]
+						},
+						"description": "Get a specific post by ID. No authentication required."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful post retrieval",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has post data\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('post');",
+									"    pm.expect(response.post).to.have.property('id');",
+									"    pm.expect(response.post).to.have.property('title');",
+									"    pm.expect(response.post).to.have.property('content');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Like Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/posts/{{postId}}/like",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"posts",
+								"{{postId}}",
+								"like"
+							]
+						},
+						"description": "Like a specific post. Requires authentication."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful like",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has likes count\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('likes');",
+									"    pm.expect(response.likes).to.be.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Delete Post",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/posts/{{postId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"posts",
+								"{{postId}}"
+							]
+						},
+						"description": "Delete a post. Only the author can delete their own posts. Requires authentication."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful deletion",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has success message\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('message');",
+									"    pm.expect(response.message).to.include('deleted successfully');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				}
+			],
+			"description": "Post management endpoints for creating, reading, liking, and deleting posts."
+		},
+		{
+			"name": "User Profile",
+			"item": [
+				{
+					"name": "Get User Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile"
+							]
+						},
+						"description": "Get the authenticated user's profile and posts. Requires authentication."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful profile retrieval",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('user');",
+									"    pm.expect(response.user).to.have.property('id');",
+									"    pm.expect(response.user).to.have.property('username');",
+									"    pm.expect(response.user).to.have.property('email');",
+									"    pm.expect(response.user).to.have.property('postsCount');",
+									"});",
+									"",
+									"pm.test(\"Response has posts array\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('posts');",
+									"    pm.expect(response.posts).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				}
+			],
+			"description": "User profile management endpoints."
+		},
+		{
+			"name": "System",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"health"
+							]
+						},
+						"description": "Check server status and statistics. No authentication required."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test successful health check",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has status OK\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('status');",
+									"    pm.expect(response.status).to.equal('OK');",
+									"});",
+									"",
+									"pm.test(\"Response has statistics\", function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('usersCount');",
+									"    pm.expect(response).to.have.property('postsCount');",
+									"    pm.expect(response).to.have.property('uptime');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				}
+			],
+			"description": "System endpoints for monitoring and health checks."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string",
+			"description": "Base URL for the API server"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string",
+			"description": "JWT authentication token (automatically set after login/register)"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string",
+			"description": "User ID (automatically set after login/register)"
+		},
+		{
+			"key": "username",
+			"value": "testuser",
+			"type": "string",
+			"description": "Username for testing"
+		},
+		{
+			"key": "email",
+			"value": "test@example.com",
+			"type": "string",
+			"description": "Email for testing"
+		},
+		{
+			"key": "password",
+			"value": "password123",
+			"type": "string",
+			"description": "Password for testing"
+		},
+		{
+			"key": "postId",
+			"value": "",
+			"type": "string",
+			"description": "Post ID (automatically set after creating a post)"
+		},
+		{
+			"key": "postTitle",
+			"value": "Test Post Title",
+			"type": "string",
+			"description": "Title for test posts"
+		},
+		{
+			"key": "postContent",
+			"value": "This is a test post content for testing the API.",
+			"type": "string",
+			"description": "Content for test posts"
+		},
+		{
+			"key": "page",
+			"value": "1",
+			"type": "string",
+			"description": "Page number for pagination"
+		},
+		{
+			"key": "limit",
+			"value": "10",
+			"type": "string",
+			"description": "Number of items per page"
+		}
+	]
+} 
