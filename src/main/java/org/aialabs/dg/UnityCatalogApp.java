@@ -1,11 +1,12 @@
 package org.aialabs.dg;
 
+import jakarta.annotation.PostConstruct;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
-
+import org.aialabs.dg.CatalogCreation.UnityCatalogAssetCounter;
 import org.aialabs.dg.CatalogCreation.UnityCatalogManager;
 import org.aialabs.dg.config.ApplicationProperties;
 import org.aialabs.dg.config.CRLFLogConverter;
@@ -18,8 +19,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.liquibase.LiquibaseProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.env.Environment;
-
-import jakarta.annotation.PostConstruct;
 import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 
@@ -39,14 +38,23 @@ public class UnityCatalogApp {
     private static final Logger log = LoggerFactory.getLogger(UnityCatalogApp.class);
 
     private final Environment env;
-
     private final UnityCatalogManager unityCatalogManager;
+
+    // private final UnityCatalogAssetCounter assetCounter;
 
     public UnityCatalogApp(Environment env, UnityCatalogManager unityCatalogManager) {
         this.env = env;
         this.unityCatalogManager = unityCatalogManager;
+        // this.assetCounter = assetCounter;
     }
 
+    void countCatalogAssets() {
+        try {
+            // UnityCatalogAssetCounter.AssetCount assetCount = assetCounter.countAssets();
+        } catch (Exception e) {
+            log.error("Error counting catalog assets: {}", e.getMessage());
+        }
+    }
 
     void runCatalogManager() {
         // String catalogName = "aialabs";
@@ -70,6 +78,9 @@ public class UnityCatalogApp {
         } catch (Exception e) {
             System.out.println("Table already exists or failed to create: " + e.getMessage());
         }
+
+        // Count assets after catalog operations
+        countCatalogAssets();
     }
 
     /**
@@ -99,6 +110,7 @@ public class UnityCatalogApp {
             );
         }
         runCatalogManager();
+        //countCatalogAssets();
     }
 
     /**

@@ -34,6 +34,13 @@ find_main_class_location() {
 }
 
 run_uc_server_java_command() {
+  # Locate the Java executable dynamically
+  JAVA_EXEC=$(which java 2>/dev/null || echo "/usr/bin/java")
+  if [ ! -x "$JAVA_EXEC" ]; then
+    echo "Error: Java executable not found. Please ensure Java is installed and available in PATH." >&2
+    exit 1
+  fi
+
   # Get the existing classpath from the file (if it exists)
   CLASSPATH_FILE="$1"
   if [ -f "$CLASSPATH_FILE" ]; then
@@ -54,7 +61,7 @@ run_uc_server_java_command() {
   fi
 
   # Run the server without printing classpath details
-  /usr/bin/java -cp "$CLASS_PATH" io.unitycatalog.server.UnityCatalogServer "$@" 2>&1 || exit
+  "$JAVA_EXEC" -cp "$CLASS_PATH" io.unitycatalog.server.UnityCatalogServer "$@" 2>&1 || exit
 }
 
 run_in_source_code() {

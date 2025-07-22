@@ -1,5 +1,10 @@
 package io.unitycatalog.server.service;
 
+import static io.unitycatalog.server.model.SecurableType.CATALOG;
+import static io.unitycatalog.server.model.SecurableType.METASTORE;
+import static io.unitycatalog.server.model.SecurableType.SCHEMA;
+import static io.unitycatalog.server.model.SecurableType.VOLUME;
+
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.annotation.Delete;
@@ -22,160 +27,286 @@ import io.unitycatalog.server.model.UpdateVolumeRequestContent;
 import io.unitycatalog.server.model.VolumeInfo;
 import io.unitycatalog.server.persist.*;
 import io.unitycatalog.server.persist.model.Privileges;
-import lombok.SneakyThrows;
-
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-
-import static io.unitycatalog.server.model.SecurableType.CATALOG;
-import static io.unitycatalog.server.model.SecurableType.METASTORE;
-import static io.unitycatalog.server.model.SecurableType.SCHEMA;
-import static io.unitycatalog.server.model.SecurableType.VOLUME;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import lombok.SneakyThrows;
 
 @ExceptionHandler(GlobalExceptionHandler.class)
 public class VolumeService {
-  private final VolumeRepository volumeRepository;
-  private final SchemaRepository schemaRepository;
-  private final CatalogRepository catalogRepository;
-  private final MetastoreRepository metastoreRepository;
-  private final UserRepository userRepository;
 
-  private final UnityCatalogAuthorizer authorizer;
-  private final UnityAccessEvaluator evaluator;
+    private final VolumeRepository volumeRepository;
+    private final SchemaRepository schemaRepository;
+    private final CatalogRepository catalogRepository;
+    private final MetastoreRepository metastoreRepository;
+    private final UserRepository userRepository;
 
-  @SneakyThrows
-  public VolumeService(UnityCatalogAuthorizer authorizer, Repositories repositories) {
-    this.authorizer = authorizer;
-    this.evaluator = new UnityAccessEvaluator(authorizer);
-    this.volumeRepository = repositories.getVolumeRepository();
-    this.schemaRepository = repositories.getSchemaRepository();
-    this.catalogRepository = repositories.getCatalogRepository();
-    this.metastoreRepository = repositories.getMetastoreRepository();
-    this.userRepository = repositories.getUserRepository();
-  }
+    private final UnityCatalogAuthorizer authorizer;
+    private final UnityAccessEvaluator evaluator;
 
-  @Post("")
-  // TODO: for now, we are not supporting CREATE VOLUME or CREATE EXTERNAL VOLUME privileges
-  @AuthorizeExpression("""
-          #authorizeAny(#principal, #catalog, OWNER, USE_CATALOG) && #authorizeAny(#principal, #schema, OWNER, USE_SCHEMA)
-          """)
-  @AuthorizeKey(METASTORE)
-  public HttpResponse createVolume(@AuthorizeKeys({
-                                      @AuthorizeKey(value = SCHEMA, key = "schema_name"),
-                                      @AuthorizeKey(value = CATALOG, key = "catalog_name")
-                                    })
-                                   CreateVolumeRequestContent createVolumeRequest) {
-    // Throw error if catalog/schema does not exist
-    VolumeInfo volumeInfo = volumeRepository.createVolume(createVolumeRequest);
-    initializeAuthorizations(volumeInfo);
-    return HttpResponse.ofJson(volumeInfo);
-  }
+    @SneakyThrows
+    public VolumeService(UnityCatalogAuthorizer authorizer, Repositories repositories) {
+        this.authorizer = authorizer;
+        this.evaluator = new UnityAccessEvaluator(authorizer);
+        this.volumeRepository = repositories.getVolumeRepository();
+        this.schemaRepository = repositories.getSchemaRepository();
+        this.catalogRepository = repositories.getCatalogRepository();
+        this.metastoreRepository = repositories.getMetastoreRepository();
+        this.userRepository = repositories.getUserRepository();
+    }
 
-  @Get("")
-  @AuthorizeExpression("#defer")
-  public HttpResponse listVolumes(
-      @Param("catalog_name") String catalogName,
-      @Param("schema_name") String schemaName,
-      @Param("max_results") Optional<Integer> maxResults,
-      @Param("page_token") Optional<String> pageToken,
-      @Param("include_browse") Optional<Boolean> includeBrowse) {
-    ListVolumesResponseContent listVolumesResponse = volumeRepository.listVolumes(
-            catalogName, schemaName, maxResults, pageToken, includeBrowse);
+    @Post("")
+    // TODO: for now, we are not supporting CREATE VOLUME or CREATE EXTERNAL VOLUME privileges
+    @AuthorizeExpression(
+        """
+        #authorizeAny(#principal, #catalog, OWNER, USE_CATALOG) && #authorizeAny(#principal, #schema, OWNER, USE_SCHEMA)
+        """
+    )
+    @AuthorizeKey(METASTORE)
+    public HttpResponse createVolume(
+        @AuthorizeKeys(
+            { @AuthorizeKey(value = SCHEMA, key = "schema_name"), @AuthorizeKey(value = CATALOG, key = "catalog_name") }
+        ) CreateVolumeRequestContent createVolumeRequest
+    ) {
+        // Throw error if catalog/schema does not exist
+        VolumeInfo volumeInfo = volumeRepository.createVolume(createVolumeRequest);
+        initializeAuthorizations(volumeInfo);
+        return HttpResponse.ofJson(volumeInfo);
+    }
 
-    filterVolumes("""
+    @Get("")
+    @AuthorizeExpression("#defer")
+    public HttpResponse listVolumes(
+        @Param("catalog_name") String catalogName,
+        @Param("schema_name") String schemaName,
+        @Param("max_results") Optional<Integer> maxResults,
+        @Param("page_token") Optional<String> pageToken,
+        @Param("include_browse") Optional<Boolean> includeBrowse
+    ) {
+        ListVolumesResponseContent listVolumesResponse = volumeRepository.listVolumes(
+            catalogName,
+            schemaName,
+            maxResults,
+            pageToken,
+            includeBrowse
+        );
+
+        filterVolumes(
+            """
             #authorize(#principal, #metastore, OWNER) ||
             #authorize(#principal, #catalog, OWNER) ||
             (#authorize(#principal, #schema, OWNER) && #authorize(#principal, #catalog, USE_CATALOG)) ||
             (#authorize(#principal, #schema, USE_SCHEMA) && #authorize(#principal, #catalog, USE_CATALOG) && #authorizeAny(#principal, #volume, OWNER, READ_VOLUME))
-            """, listVolumesResponse.getVolumes());
+            """,
+            listVolumesResponse.getVolumes()
+        );
 
-    return HttpResponse.ofJson(listVolumesResponse);
-  }
+        return HttpResponse.ofJson(listVolumesResponse);
+    }
 
-  @Get("/{full_name}")
-  @AuthorizeExpression("""
-            #authorize(#principal, #metastore, OWNER) ||
-            #authorize(#principal, #catalog, OWNER) ||
-            (#authorize(#principal, #schema, OWNER) && #authorize(#principal, #catalog, USE_CATALOG)) ||
-            (#authorize(#principal, #schema, USE_SCHEMA) && #authorize(#principal, #catalog, USE_CATALOG) && #authorizeAny(#principal, #volume, OWNER, READ_VOLUME))
-          """)
-  @AuthorizeKey(METASTORE)
-  public HttpResponse getVolume(
-      @Param("full_name") @AuthorizeKey(VOLUME) String fullName,
-      @Param("include_browse") Optional<Boolean> includeBrowse) {
-    return HttpResponse.ofJson(volumeRepository.getVolume(fullName));
-  }
-
-  @Patch("/{full_name}")
-  @AuthorizeExpression("""
-          (#authorize(#principal, #volume, OWNER) && #authorizeAny(#principal, #catalog, OWNER, USE_CATALOG) && #authorizeAny(#principal, #schema, OWNER, USE_SCHEMA))
-          """)
-  @AuthorizeKey(METASTORE)
-  public HttpResponse updateVolume(
-      @Param("full_name") @AuthorizeKey(VOLUME) String fullName, UpdateVolumeRequestContent updateVolumeRequest) {
-    return HttpResponse.ofJson(volumeRepository.updateVolume(fullName, updateVolumeRequest));
-  }
-
-  @Delete("/{full_name}")
-  @AuthorizeExpression("""
+    @Get("/{full_name}")
+    @AuthorizeExpression(
+        """
+          #authorize(#principal, #metastore, OWNER) ||
           #authorize(#principal, #catalog, OWNER) ||
           (#authorize(#principal, #schema, OWNER) && #authorize(#principal, #catalog, USE_CATALOG)) ||
-          (#authorize(#principal, #volume, OWNER) && #authorize(#principal, #catalog, USE_CATALOG) && #authorize(#principal, #schema, USE_SCHEMA))
-          """)
-  @AuthorizeKey(METASTORE)
-  public HttpResponse deleteVolume(@Param("full_name") @AuthorizeKey(VOLUME) String fullName) {
-    VolumeInfo volumeInfo = volumeRepository.getVolume(fullName);
-    volumeRepository.deleteVolume(fullName);
-    removeAuthorizations(volumeInfo);
-    return HttpResponse.of(HttpStatus.OK);
-  }
+          (#authorize(#principal, #schema, USE_SCHEMA) && #authorize(#principal, #catalog, USE_CATALOG) && #authorizeAny(#principal, #volume, OWNER, READ_VOLUME))
+        """
+    )
+    @AuthorizeKey(METASTORE)
+    public HttpResponse getVolume(
+        @Param("full_name") @AuthorizeKey(VOLUME) String fullName,
+        @Param("include_browse") Optional<Boolean> includeBrowse
+    ) {
+        return HttpResponse.ofJson(volumeRepository.getVolume(fullName));
+    }
 
-  public void filterVolumes(String expression, List<VolumeInfo> entries) {
-    // TODO: would be nice to move this to filtering in the Decorator response
-    UUID principalId = userRepository.findPrincipalId();
+    @Get("/search")
+    @AuthorizeExpression("#defer")
+    public HttpResponse searchVolumes(
+        @Param("search") String searchText,
+        @Param("catalog_name") String catalogName,
+        @Param("schema_name") String schemaName,
+        @Param("max_results") Optional<Integer> maxResults,
+        @Param("page_token") Optional<String> pageToken
+    ) {
+        // Fetch all volumes initially based on catalog and schema
+        ListVolumesResponseContent listVolumesResponse = volumeRepository.listVolumes(
+            catalogName,
+            schemaName,
+            maxResults,
+            pageToken,
+            Optional.of(false) // Don't include browse
+        );
 
-    evaluator.filter(
+        // Filter volumes based on search text in properties
+        List<VolumeInfo> filteredVolumes = listVolumesResponse
+            .getVolumes()
+            .stream()
+            .filter(volume -> {
+                Map<String, String> properties = volume.getProperties();
+                if (properties != null) {
+                    return properties
+                        .entrySet()
+                        .stream()
+                        .anyMatch(entry ->
+                            entry.getKey().toLowerCase().contains(searchText.toLowerCase()) ||
+                            entry.getValue().toLowerCase().contains(searchText.toLowerCase())
+                        );
+                }
+                return false;
+            })
+            .collect(Collectors.toList());
+
+        // Apply authorization filtering
+        filterVolumes(
+            """
+            #authorize(#principal, #metastore, OWNER) ||
+            #authorize(#principal, #catalog, OWNER) ||
+            (#authorize(#principal, #schema, OWNER) && #authorize(#principal, #catalog, USE_CATALOG)) ||
+            (#authorize(#principal, #schema, USE_SCHEMA) && #authorize(#principal, #catalog, USE_CATALOG) && #authorizeAny(#principal, #volume, OWNER, READ_VOLUME))
+            """,
+            filteredVolumes
+        );
+
+        // Create response with filtered volumes
+        ListVolumesResponseContent filteredResponse = new ListVolumesResponseContent();
+        filteredResponse.setVolumes(filteredVolumes);
+        // Preserve pagination if it exists
+        if (listVolumesResponse.getNextPageToken() != null) {
+            filteredResponse.setNextPageToken(listVolumesResponse.getNextPageToken());
+        }
+
+        return HttpResponse.ofJson(filteredResponse);
+    }
+
+    @Get("/labels")
+    @AuthorizeExpression("#defer")
+    public HttpResponse getVolumeLabels(
+        @Param("catalog_name") String catalogName,
+        @Param("schema_name") String schemaName,
+        @Param("max_results") Optional<Integer> maxResults,
+        @Param("page_token") Optional<String> pageToken
+    ) {
+        // Fetch all volumes in the specified catalog and schema
+        ListVolumesResponseContent listVolumesResponse = volumeRepository.listVolumes(
+            catalogName,
+            schemaName,
+            maxResults,
+            pageToken,
+            Optional.of(false) // Don't include browse
+        );
+
+        // Apply authorization filtering (same as listVolumes)
+        filterVolumes(
+            """
+            #authorize(#principal, #metastore, OWNER) ||
+            #authorize(#principal, #catalog, OWNER) ||
+            (#authorize(#principal, #schema, OWNER) && #authorize(#principal, #catalog, USE_CATALOG)) ||
+            (#authorize(#principal, #schema, USE_SCHEMA) && #authorize(#principal, #catalog, USE_CATALOG) && #authorizeAny(#principal, #volume, OWNER, READ_VOLUME))
+            """,
+            listVolumesResponse.getVolumes()
+        );
+
+        // Aggregate all properties into a single map, ignoring volume names
+        Map<String, String> allProperties = listVolumesResponse
+            .getVolumes()
+            .stream()
+            .flatMap(volume -> {
+                Map<String, String> properties = volume.getProperties();
+                return properties != null ? properties.entrySet().stream() : Stream.empty();
+            })
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey, // Property key
+                    Map.Entry::getValue, // Property value
+                    (existing, replacement) -> existing // Keep first value in case of duplicate keys
+                )
+            );
+
+        // Create a response object
+        Map<String, Object> response = new HashMap<>();
+        response.put("labels", allProperties);
+        if (listVolumesResponse.getNextPageToken() != null) {
+            response.put("next_page_token", listVolumesResponse.getNextPageToken());
+        }
+
+        return HttpResponse.ofJson(response);
+    }
+
+    @Patch("/{full_name}")
+    @AuthorizeExpression(
+        """
+        (#authorize(#principal, #volume, OWNER) && #authorizeAny(#principal, #catalog, OWNER, USE_CATALOG) && #authorizeAny(#principal, #schema, OWNER, USE_SCHEMA))
+        """
+    )
+    @AuthorizeKey(METASTORE)
+    public HttpResponse updateVolume(
+        @Param("full_name") @AuthorizeKey(VOLUME) String fullName,
+        UpdateVolumeRequestContent updateVolumeRequest
+    ) {
+        return HttpResponse.ofJson(volumeRepository.updateVolume(fullName, updateVolumeRequest));
+    }
+
+    @Delete("/{full_name}")
+    @AuthorizeExpression(
+        """
+        #authorize(#principal, #catalog, OWNER) ||
+        (#authorize(#principal, #schema, OWNER) && #authorize(#principal, #catalog, USE_CATALOG)) ||
+        (#authorize(#principal, #volume, OWNER) && #authorize(#principal, #catalog, USE_CATALOG) && #authorize(#principal, #schema, USE_SCHEMA))
+        """
+    )
+    @AuthorizeKey(METASTORE)
+    public HttpResponse deleteVolume(@Param("full_name") @AuthorizeKey(VOLUME) String fullName) {
+        VolumeInfo volumeInfo = volumeRepository.getVolume(fullName);
+        volumeRepository.deleteVolume(fullName);
+        removeAuthorizations(volumeInfo);
+        return HttpResponse.of(HttpStatus.OK);
+    }
+
+    public void filterVolumes(String expression, List<VolumeInfo> entries) {
+        // TODO: would be nice to move this to filtering in the Decorator response
+        UUID principalId = userRepository.findPrincipalId();
+
+        evaluator.filter(
             principalId,
             expression,
             entries,
             vi -> {
-              CatalogInfo catalogInfo = catalogRepository.getCatalog(vi.getCatalogName());
-              SchemaInfo schemaInfo =
-                      schemaRepository.getSchema(vi.getCatalogName() + "." + vi.getSchemaName());
-              return Map.of(
-                      METASTORE,
-                      metastoreRepository.getMetastoreId(),
-                      CATALOG,
-                      UUID.fromString(catalogInfo.getId()),
-                      SCHEMA,
-                      UUID.fromString(schemaInfo.getSchemaId()),
-                      VOLUME,
-                      UUID.fromString(vi.getVolumeId()));
-            });
-  }
+                CatalogInfo catalogInfo = catalogRepository.getCatalog(vi.getCatalogName());
+                SchemaInfo schemaInfo = schemaRepository.getSchema(vi.getCatalogName() + "." + vi.getSchemaName());
+                return Map.of(
+                    METASTORE,
+                    metastoreRepository.getMetastoreId(),
+                    CATALOG,
+                    UUID.fromString(catalogInfo.getId()),
+                    SCHEMA,
+                    UUID.fromString(schemaInfo.getSchemaId()),
+                    VOLUME,
+                    UUID.fromString(vi.getVolumeId())
+                );
+            }
+        );
+    }
 
-  private void initializeAuthorizations(VolumeInfo volumeInfo) {
-    SchemaInfo schemaInfo =
-            schemaRepository.getSchema(volumeInfo.getCatalogName() + "." + volumeInfo.getSchemaName());
-    UUID principalId = userRepository.findPrincipalId();
-    // add owner privilege
-    authorizer.grantAuthorization(
-            principalId, UUID.fromString(volumeInfo.getVolumeId()), Privileges.OWNER);
-    // make table a child of the schema
-    authorizer.addHierarchyChild(
-            UUID.fromString(schemaInfo.getSchemaId()), UUID.fromString(volumeInfo.getVolumeId()));
-  }
+    private void initializeAuthorizations(VolumeInfo volumeInfo) {
+        SchemaInfo schemaInfo = schemaRepository.getSchema(volumeInfo.getCatalogName() + "." + volumeInfo.getSchemaName());
+        UUID principalId = userRepository.findPrincipalId();
+        // add owner privilege
+        authorizer.grantAuthorization(principalId, UUID.fromString(volumeInfo.getVolumeId()), Privileges.OWNER);
+        // make table a child of the schema
+        authorizer.addHierarchyChild(UUID.fromString(schemaInfo.getSchemaId()), UUID.fromString(volumeInfo.getVolumeId()));
+    }
 
-  private void removeAuthorizations(VolumeInfo volumeInfo) {
-    SchemaInfo schemaInfo =
-            schemaRepository.getSchema(volumeInfo.getCatalogName() + "." + volumeInfo.getSchemaName());
-    // remove any direct authorizations on the table
-    authorizer.clearAuthorizationsForResource(UUID.fromString(volumeInfo.getVolumeId()));
-    // remove link to the parent schema
-    authorizer.removeHierarchyChild(
-            UUID.fromString(schemaInfo.getSchemaId()), UUID.fromString(volumeInfo.getVolumeId()));
-  }
-
+    private void removeAuthorizations(VolumeInfo volumeInfo) {
+        SchemaInfo schemaInfo = schemaRepository.getSchema(volumeInfo.getCatalogName() + "." + volumeInfo.getSchemaName());
+        // remove any direct authorizations on the table
+        authorizer.clearAuthorizationsForResource(UUID.fromString(volumeInfo.getVolumeId()));
+        // remove link to the parent schema
+        authorizer.removeHierarchyChild(UUID.fromString(schemaInfo.getSchemaId()), UUID.fromString(volumeInfo.getVolumeId()));
+    }
 }

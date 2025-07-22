@@ -188,11 +188,23 @@ spring:
         provider:
           oidc:
             issuer-uri: http://localhost:9080/realms/jhipster
+            # issuer-uri: http://localhost:8180/realms/dalab
         registration:
           oidc:
-            client-id: internal
-            client-secret: internal
-            scope: openid, profile, email, offline_access # last one for refresh tokens
+            client-id: dalab-ui
+            client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+            scope: openid, profile, email, offline_access, dalab
+            redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
+            post-logout-redirect-uri: '{baseUrl}'
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/dalab
+          jwk-set-uri: http://localhost:8180/realms/dalab/protocol/openid-connect/certs
+          audience:
+            - dalab-ui
+            - dalab
+
+            - api://default
 
 server:
   servlet:
@@ -243,7 +255,7 @@ jhipster:
     oauth2:
       audience:
         - account
-        - api://default
+        - dalab-ui
 # ===================================================================
 # Application specific properties
 # Add your own application properties here, see the ApplicationProperties class

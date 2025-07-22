@@ -1,9 +1,10 @@
 name: unitycatalog
 
 services:
-
   server:
-    image: unitycatalog/unitycatalog:latest
+    build:
+      context: .  # Adjust this to the directory with the server's Dockerfile (e.g., ./server if it’s in a subdirectory)
+      dockerfile: Dockerfile  # Adjust if the Dockerfile has a different name
     ports:
       - "8080:8080"
     volumes:
@@ -13,15 +14,15 @@ services:
       - type: volume
         source: unitycatalog_data
         target: /opt/unitycatalog/etc/data
-  ui:
-    build:
-      context: ui/
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    depends_on:
-      - server
+
+  # ui:
+  #   build:
+  #     context: ui/
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - server
 
 volumes:
-  # Persist docker volume across container restarts
   unitycatalog_data:

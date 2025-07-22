@@ -1,7 +1,8 @@
 # ===================================================================
 # Spring Boot configuration.
 #
-# This configuration is used for unit/integration tests.
+# This configuration will be overridden by the Spring profile you use,
+# for example application-dev.yml if you use the "dev" profile.
 #
 # More information on profiles: https://www.jhipster.tech/profiles/
 # More information on configuration properties: https://www.jhipster.tech/common-application-properties/
@@ -13,19 +14,119 @@
 # http://docs.spring.io/spring-boot/docs/current/reference/html/common-application-properties.html
 # ===================================================================
 
+---
+# Conditionally disable springdoc on missing api-docs profile
+spring:
+  config:
+    activate:
+      on-profile: '!api-docs'
+springdoc:
+  api-docs:
+    enabled: false
+---
 eureka:
   client:
-    enabled: false
+    enabled: true
+    healthcheck:
+      enabled: true
+    fetch-registry: true
+    register-with-eureka: true
+    instance-info-replication-interval-seconds: 10
+    registry-fetch-interval-seconds: 10
   instance:
-    appname: unityCatalog
-    instanceId: unityCatalog:${spring.application.instance-id:${random.value}}
+    appname: unitycatalog
+    instanceId: unitycatalog:${spring.application.instance-id:${random.value}}
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
+    status-page-url-path: ${management.endpoints.web.base-path}/info
+    health-check-url-path: ${management.endpoints.web.base-path}/health
+    metadata-map:
+      zone: primary # This is needed for the load balancer
+      profile: ${spring.profiles.active}
+      version: #project.version#
+      git-version: ${git.commit.id.describe:}
+      git-commit: ${git.commit.id.abbrev:}
+      git-branch: ${git.branch:}
+      context-path: ${server.servlet.context-path:}
+reactive:
+  feign:
+    circuit:
+      breaker:
+        enabled: true
+  # client:
+  #   config:
+  #     default:
+  #       connectTimeout: 5000
+  #       readTimeout: 5000
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include:
+          - configprops
+          - env
+          - health
+          - info
+          - jhimetrics
+          - jhiopenapigroups
+          - logfile
+          - loggers
+          - prometheus
+          - threaddump
+          - liquibase
+  endpoint:
+    health:
+      show-details: when_authorized
+      roles: 'ROLE_ADMIN'
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState
+    jhimetrics:
+      enabled: true
+  info:
+    git:
+      mode: full
+    env:
+      enabled: true
+  health:
+    mail:
+      enabled: false # When using the MailService, configure an SMTP server and set this to true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+        step: 60
+  observations:
+    key-values:
+      application: ${spring.application.name}
+  metrics:
+    enable:
+      http: true
+      jvm: true
+      logback: true
+      process: true
+      system: true
+    distribution:
+      percentiles-histogram:
+        all: true
+      percentiles:
+        all: 0, 0.5, 0.75, 0.95, 0.99, 1.0
+    data:
+      repository:
+        autotime:
+          enabled: true
 
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
   application:
     name: unityCatalog
   cloud:
-    config:
-      enabled: false
     function:
       definition: kafkaConsumer;kafkaProducer
     stream:
@@ -33,6 +134,7 @@ spring:
         binder:
           replicationFactor: 1
           auto-create-topics: true
+          brokers: localhost:9092
       bindings:
         binding-out-0:
           content-type: text/plain
@@ -44,63 +146,115 @@ spring:
         kafkaProducer-out-0:
           content-type: text/plain
           group: unity-catalog
-  # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
-  liquibase:
-    contexts: test
-  jackson:
-    serialization:
-      write-durations-as-timestamps: false
-  mail:
-    host: localhost
-  main:
-    allow-bean-definition-overriding: true
+  profiles:
+    # The commented value for `active` can be replaced with valid Spring profiles to load.
+    # Otherwise, it will be filled in by maven when building the JAR file
+    # Either way, it can be overridden by `--spring.profiles.active` value passed in the commandline or `-Dspring.profiles.active` set in `JAVA_OPTS`
+    active: #spring.profiles.active#
+    group:
+      dev:
+        - dev
+        - api-docs
+        # Uncomment to activate TLS for the dev profile
+        #- tls
+  jmx:
+    enabled: false
   messages:
     basename: i18n/messages
+  main:
+    allow-bean-definition-overriding: true
+  webflux:
+    problemdetails:
+      enabled: true
   task:
     execution:
       thread-name-prefix: unity-catalog-task-
       pool:
-        core-size: 1
+        core-size: 2
         max-size: 50
         queue-capacity: 10000
     scheduling:
       thread-name-prefix: unity-catalog-scheduling-
       pool:
-        size: 20
+        size: 2
   thymeleaf:
     mode: HTML
-  # Allow SecurityConfiguration to initialize w/o specifying an empty issuer-uri is OK
+  output:
+    ansi:
+      console-available: true
   security:
     oauth2:
       client:
         provider:
           oidc:
-            issuer-uri: http://DO_NOT_CALL:9080/realms/jhipster
+            issuer-uri: http://localhost:8180/realms/dalab
+        registration:
+          oidc:
+            client-id: dalab-ui
+            client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+            scope: openid, profile, email, offline_access, dalab
+            redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
+            post-logout-redirect-uri: '{baseUrl}'
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/dalab
+          jwk-set-uri: http://localhost:8180/realms/dalab/protocol/openid-connect/certs
+          issuer: http://localhost:8180/realms/dalab
+          audience:
+            - dalab-ui
+            - dalab
+            - account
+            - api://dalab
 
 server:
-  port: 10344
-  address: localhost
+  servlet:
+    session:
+      cookie:
+        http-only: true
+
+springdoc:
+  show-actuator: true
+
+# Properties to be exposed on the /info management endpoint
+info:
+  # Comma separated list of profiles that will trigger the ribbon to show
+  display-ribbon-on-profiles: 'dev'
 
 # ===================================================================
 # JHipster specific properties
 #
 # Full reference is available at: https://www.jhipster.tech/common-application-properties/
 # ===================================================================
+
 jhipster:
   clientApp:
     name: 'unityCatalogApp'
+  # By default CORS is disabled. Uncomment to enable.
+  # cors:
+  #   allowed-origins: "http://localhost:8100,http://localhost:9000"
+  #   allowed-methods: "*"
+  #   allowed-headers: "*"
+  #   exposed-headers: "Authorization,Link,X-Total-Count,X-${jhipster.clientApp.name}-alert,X-${jhipster.clientApp.name}-error,X-${jhipster.clientApp.name}-params"
+  #   allow-credentials: true
+  #   max-age: 1800
   mail:
-    from: unityCatalog@localhost.com
-    base-url: http://127.0.0.1:8080
-  logging:
-    # To test json console appender
-    use-json-format: false
-    logstash:
-      enabled: false
-      host: localhost
-      port: 5000
-      ring-buffer-size: 512
-
+    from: unityCatalog@localhost
+  api-docs:
+    default-include-pattern: /api/**
+    management-include-pattern: /management/**
+    title: Unity Catalog API
+    description: Unity Catalog API documentation
+    version: 0.0.1
+    terms-of-service-url:
+    contact-name:
+    contact-url:
+    contact-email:
+    license: unlicensed
+    license-url:
+  security:
+    oauth2:
+      audience:
+        - dalab-ui
 # ===================================================================
 # Application specific properties
 # Add your own application properties here, see the ApplicationProperties class
@@ -111,7 +265,3 @@ jhipster:
 # ===================================================================
 
 # application:
-management:
-  health:
-    mail:
-      enabled: false
