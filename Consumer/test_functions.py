@@ -5,7 +5,7 @@ import concurrent.futures
 import traceback
 from model.detections import Detections
 from model.gender_model import ProcessFrame
-from model.pose_test_redis_ui import Pose
+from model.pose_model import Pose
 
 # Function Logger Setup
 function_logger = logging.getLogger('function_logger')

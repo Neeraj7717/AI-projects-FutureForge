@@ -8,8 +8,3 @@ services:
     restart: unless-stopped
     volumes:
       - ./checkpoints:/usr/app/checkpoints
-    deploy:
-      resources:
-        reservations:
-          cpus: '0.50'
-          memory: 1g

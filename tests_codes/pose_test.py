@@ -171,7 +171,7 @@ class Pose:
                 pose_logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
 
 
-            if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
+            if len(saved_detections) == config.pose_continuity and len(set(saved_detections)) == 1:
                 self.remove_detection(sessionId)
                 return task, map
             

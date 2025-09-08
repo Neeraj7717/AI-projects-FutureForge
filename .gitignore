@@ -1,5 +1,6 @@
 /.env
 /venv
+/test_env
 /1.jpg
 ./webrtc/test/
 ./utils/__pycache__/api_client.cpython-310.pyc
@@ -29,7 +30,8 @@ checkpoints/gender_model_checkpoints/*
 dist/
 build/
 *.egg-info/
-
+**/__pycache__
+test_env
 # Unit test / coverage reports
 htmlcov/
 .tox/

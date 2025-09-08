@@ -1,22 +1,17 @@
-import base64
 import json
 import logging
 import time
 import traceback
 import numpy as np
 import pymongo
-import cv2
 from datetime import datetime
 import mediapipe as mp
 import concurrent.futures
 from kafka import KafkaProducer
 from Config.settings import Settings
-from utils.pose_analytics_redis import analyze_live_squat, close_redis_connection_pose_utils
-from instruction.instructions_graph_pose_redis import TaskManager
+from instruction.instructions_graph_pose_redis_test_logger import TaskManager
 import redis
 import os
-
-
 
 pose = mp.solutions.pose
 
@@ -37,32 +32,39 @@ console_handler.setFormatter(formatter)
 pose_logger.addHandler(console_handler)
 
 class Pose:
-    """Class for performing pose detection."""
-
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Pose, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
-        """Initialize pose detection model."""
-        self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
-        self.db = self.client[config.stateless_db]  # Use or create a database
-        self.db1 = self.client[config.database_name]
-        self.collection = self.db[config.stateless_collection_detections]
-        self.lagcollection = self.db["lag"]
-        self.stepcollection = self.db["state"]
-        self.sessionSteps = self.db1["sessionSteps"]
-        self.monualCollection = self.db1["manual"]
-        self.producer = KafkaProducer(bootstrap_servers=config.kafka_url)
-        self.pose_model = pose.Pose(static_image_mode=False,         # Video mode for continuous tracking
-                                    model_complexity=1,              # Increased to 1 for better accuracy while still maintaining speed
-                                    smooth_landmarks=True,           # Enable built-in smoothing
-                                    enable_segmentation=False,       # Keep disabled for speed
-                                    min_detection_confidence=0.4,    # Standard detection confidence
-                                    min_tracking_confidence=0.2      # Lower tracking confidence to maintain detection between frames
-                                )
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-        self.fps = config.fps
-        self.task_manager = TaskManager()
-        self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
-        # Store manual data in a dictionary
-        self.manual_data_cache = {}
+        if not self._initialized:
+            self.client = pymongo.MongoClient(config.mongo_connection_string_stateless)  # Connect to MongoDB
+            self.db = self.client[config.stateless_db]  # Use or create a database
+            self.db1 = self.client[config.database_name]
+            self.collection = self.db[config.stateless_collection_detections]
+            self.lagcollection = self.db["lag"]
+            self.stepcollection = self.db["state"]
+            self.sessionSteps = self.db1["sessionSteps"]
+            self.monualCollection = self.db1["manual"]
+            self.producer = KafkaProducer(bootstrap_servers=config.kafka_url)
+            self.pose_model = pose.Pose(static_image_mode=False,         # Video mode for continuous tracking
+                                        model_complexity=1,              # Increased to 1 for better accuracy while still maintaining speed
+                                        smooth_landmarks=True,           # Enable built-in smoothing
+                                        enable_segmentation=False,       # Keep disabled for speed
+                                        min_detection_confidence=0.4,    # Standard detection confidence
+                                        min_tracking_confidence=0.2      # Lower tracking confidence to maintain detection between frames
+                                    )
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+            self.fps = config.pose_fps
+            self.task_manager = TaskManager()
+            self.redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
+            # Store manual data in a dictionary
+            self.manual_data_cache = {}
+        self._initialized = True
 
     def close(self):
         """Close MongoDB and executor to prevent memory leaks."""
@@ -71,7 +73,7 @@ class Pose:
         # Redis client does not need to be explicitly closed, but ensure no references are kept
         self.redis_client.close() # Clear the reference to the Redis client
         self.task_manager.close()
-        close_redis_connection_pose_utils()
+
 
     def reduce_lag_redis(self, sessionId, manualId):
         """Reduce lag in Redis by decrementing the value."""
@@ -166,7 +168,7 @@ class Pose:
             # if saved_detections:
             #     pose_logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
 
-            if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
+            if len(saved_detections) == config.pose_continuity and len(set(saved_detections)) == 1:
                 # self.remove_detection(sessionId)
                 self.remove_detection_redis(sessionId, manualId, sourceId)
                 return task, map
@@ -226,37 +228,30 @@ class Pose:
             return None
 
 
-    def _process_pose_detection(self, file, sourceId, sessionId, manualId, frame_no):
+    def _process_pose_detection(self, landmarks, sourceId, sessionId, manualId, frame_no):
         """Internal function to perform the core pose detection logic."""
         try:
-            pose_logger.info(f"_process_pose_detection:start:---{frame_no}---:{datetime.now()}")
+            # pose_logger.info(f"_process_pose_detection:start:---{frame_no}---:{datetime.now()}")
             
             start_time = time.time()
-
-            # Decode base64 image
-            header, encoded = file.split(",", 1)
-            image_bytes = base64.b64decode(encoded)
-            np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
-            if np_arr is None or np_arr.size == 0:
-                pose_logger.info("Empty image buffer")
-                return None
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = self.pose_model.process(rgb_image)
+            # print("Landmarks:", landmarks, "\n", "Landmarks type", type(landmarks))
+            # Frame dimensions  
+            frame_shape = (1080, 1920, 3)  # Height, Width, Channels
 
             # Check if person is present
-            person_present = results.pose_landmarks is not None
-
+            person_present = landmarks is not None
             things_present = []
-            hand_status = "noHandsRaised"
+            hand_status = None
             keypoint_data = {}
 
             if person_present:
                 things_present.append("personPresent")
-                hand_status, keypoint_data = self.detect_raised_hands(results.pose_landmarks, frame.shape)
-                things_present.append(hand_status)
-            pose_logger.info(f"_process_pose_detection:end---{frame_no}---:{datetime.now()}")
-            return frame, results, things_present, start_time # Return required data
+                hand_status = self.detect_raised_hands(landmarks, frame_shape)
+                if hand_status is not None:
+                    things_present.append(hand_status)
+            # pose_logger.info(f"_process_pose_detection:end---{frame_no}---:{datetime.now()}")
+            print("Things Present", sorted(things_present))
+            return frame_shape, landmarks, sorted(things_present), start_time  # Return required data
 
         except Exception as e:
             pose_logger.error(f"Error in _process_pose_detection: {e}")
@@ -266,38 +261,45 @@ class Pose:
     def process_squat_analysis(self, sessionId, frame, things_present, sourceId, manualId, results, frame_no):
         """Handle squat analysis in a separate thread"""
         try:
-            pose_logger.info(f"process_squat_analysis:start:---{frame_no}---:{datetime.now()}")
+            # pose_logger.info(f"process_squat_analysis:start:---{frame_no}---:{datetime.now()}")
 
             overall_start_time = time.time()
-            # document = self.stepcollection.find_one({"sessionId": sessionId})
             key = f"vip:{sessionId}:{manualId}:state"
             if self.redis_client.exists(key):
-                # if document and 'current_step' in document:
                 current_step = int(self.redis_client.get(key))
+                updated_things_present = things_present.copy()
+                if current_step == 3:
+                    print("In Step 3")
+                    is_right_down = self.is_right_hand_down(results, (1080, 1920, 3))  # Check right hand status
+                    print("is right Down", is_right_down)
+                    if is_right_down is not None:
+                        updated_things_present.append(is_right_down)
+                    # pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
+                    print("Updated Things Present", updated_things_present)
+                    self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(updated_things_present))
+                elif current_step == 5:
+                    print("In step 5")
+                    is_left_down = self.is_left_hand_down(results, (1080, 1920, 3))  # Fixed function call
+                    print("is left down", is_left_down)
+                    if is_left_down is not None:
+                        updated_things_present.append(is_left_down)
+                    # pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
+                    print("Updated Things Present", updated_things_present)
+                    self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(updated_things_present))
+                elif current_step == 7:
+                    print("In step 7")
+                    updated_things_present.append("noHandRaised")
+                    self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(updated_things_present))
 
-                if current_step > 2 and current_step < 6:
-                    squats_result = analyze_live_squat(sessionId, manualId, frame, results)
-                    # Create a copy of things_present to avoid race conditions
-                    updated_things_present = things_present.copy()
-                    updated_things_present.append(squats_result)
-                    pose_logger.info(f"process_squat_analysis:inProcess:---{frame_no}---:{datetime.now()}")
-
-                    # Process the instruction graph with the updated things_present
-                    self.instruction_graph(sourceId, sessionId, manualId, frame, updated_things_present)
                 else:
-                    # If not in squat step range, process with original things_present
-                    self.instruction_graph(sourceId, sessionId, manualId, frame, things_present)
+                    self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(things_present))
             else:
-                # If no document or current_step, process with original things_present
-                self.instruction_graph(sourceId, sessionId, manualId, frame, things_present)
+                self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(things_present))
         except Exception as e:
-            # Even if squat analysis fails, still process the frame
-            self.instruction_graph(sourceId, sessionId, manualId, frame, things_present)
+            print
+            self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(things_present))
 
-        # overall_duration = time.time() - overall_start_time
-        # pose_logger.info(f"Overall process_squat_analysis completed in {overall_duration:.3f}s-------{frame_no}")
-        pose_logger.info(f"process_squat_analysis:end:---{frame_no}---:{datetime.now()}")
-
+        # pose_logger.info(f"process_squat_analysis:end:---{frame_no}---:{datetime.now()}")
 
     def instruction_graph(self, sourceId, sessionId, manualId, frame, things_present):
         try:
@@ -314,11 +316,13 @@ class Pose:
                     if response != 0 and response is not None:
                         # self.add_lag(sourceId, sessionId)
                         self.add_lag_redis(sessionId, manualId, response)
+                instruction_time2 = time.time() - instruction_start1
+                pose_logger.info(f"Instruction analysis completed in if {instruction_time2:.3f}s")
             else:
                 # self.reduce_lag(sourceId, sessionId)
                 self.reduce_lag_redis(sessionId, manualId)
-            instruction_time2 = time.time() - instruction_start1
-            pose_logger.info(f"Instruction analysis completed in {instruction_time2:.3f}s")
+                instruction_time2 = time.time() - instruction_start1
+                pose_logger.info(f"Instruction analysis completed in else {instruction_time2:.3f}s")
 
         except Exception as e:
             pose_logger.error(f"Error in instruction_graph: {e}")
@@ -327,28 +331,47 @@ class Pose:
     def detect_raised_hands(self, landmarks, frame_shape):
         height, width, _ = frame_shape
 
-        left_wrist_y = landmarks.landmark[pose.PoseLandmark.LEFT_WRIST].y * height
-        right_wrist_y = landmarks.landmark[pose.PoseLandmark.RIGHT_WRIST].y * height
+        left_wrist_y = landmarks[pose.PoseLandmark.LEFT_WRIST.value]['y'] * height
+        right_wrist_y = landmarks[pose.PoseLandmark.RIGHT_WRIST.value]['y'] * height
 
-        left_shoulder_y = landmarks.landmark[pose.PoseLandmark.LEFT_SHOULDER].y * height
-        right_shoulder_y = landmarks.landmark[pose.PoseLandmark.RIGHT_SHOULDER].y * height
+        left_shoulder_y = landmarks[pose.PoseLandmark.LEFT_SHOULDER.value]['y'] * height
+        right_shoulder_y = landmarks[pose.PoseLandmark.RIGHT_SHOULDER.value]['y'] * height
 
-        hand_status = "noHandsRaised"
-        keypoint_data = {
-            "left_wrist": (left_wrist_y),
-            "right_wrist": (right_wrist_y),
-            "left_shoulder": (left_shoulder_y),
-            "right_shoulder": (right_shoulder_y)
-        }
+        left_elbow_y = landmarks[pose.PoseLandmark.LEFT_ELBOW.value]['y'] * height
+        right_elbow_y = landmarks[pose.PoseLandmark.RIGHT_ELBOW.value]['y'] * height
+
+        hand_status = None
+
 
         if left_wrist_y < left_shoulder_y:
-            hand_status = "leftHandRaised"
+            hand_status = "leftHandAbove90" if left_elbow_y < left_shoulder_y else "leftHandBelow90"
         if right_wrist_y < right_shoulder_y:
-            hand_status = "rightHandRaised"
+            hand_status = "rightHandAbove90" if right_elbow_y < right_shoulder_y else "rightHandBelow90"
         if left_wrist_y < left_shoulder_y and right_wrist_y < right_shoulder_y:
-            hand_status = "bothHandsRaised"
+            hand_status = "bothHandsAbove90" if left_elbow_y < left_shoulder_y and right_elbow_y < right_shoulder_y else "bothHandsBelow90"
 
-        return hand_status, keypoint_data
+
+        return hand_status
+
+    def is_left_hand_down(self, landmarks, frame_shape):
+        height, width, _ = frame_shape
+        left_wrist_y = landmarks[pose.PoseLandmark.LEFT_WRIST.value]['y'] * height
+        left_shoulder_y = landmarks[pose.PoseLandmark.LEFT_SHOULDER.value]['y'] * height
+
+        left_hand_down = left_wrist_y > left_shoulder_y
+        return "liftHandDown" if left_hand_down else None  # Return string if left hand is down
+
+    def is_right_hand_down(self, landmarks, frame_shape):
+        height, width, _ = frame_shape
+        
+        right_wrist_y = landmarks[pose.PoseLandmark.RIGHT_WRIST.value]['y'] * height
+        right_shoulder_y = landmarks[pose.PoseLandmark.RIGHT_SHOULDER.value]['y'] * height
+
+        right_hand_down = right_wrist_y > right_shoulder_y
+        print(right_hand_down)
+        
+        
+        return "rightHandDown" if right_hand_down else None  # Return string if right hand is down
 
     def draw_annotations(self, image, landmarks, sourceId, sessionId, manualId, start_time, frame_no, timeStamp):
         try:
@@ -389,23 +412,23 @@ class Pose:
             visibility_threshold = 0.1
 
             for connection in skeleton_connections:
-                start_point = landmarks.pose_landmarks.landmark[connection[0]]
-                end_point = landmarks.pose_landmarks.landmark[connection[1]]
+                start_point = landmarks[connection[0].value]
+                end_point = landmarks[connection[1].value]
 
                 # Check if both landmarks in the connection are visible
-                if start_point.visibility > visibility_threshold and end_point.visibility > visibility_threshold:
+                if start_point['visibility'] > visibility_threshold and end_point['visibility'] > visibility_threshold:
                     # Convert normalized coordinates to pixel coordinates
-                    start_x = int(start_point.x * image.shape[1])
-                    start_y = int(start_point.y * image.shape[0])
-                    end_x = int(end_point.x * image.shape[1])
-                    end_y = int(end_point.y * image.shape[0])
+                    start_x = int(start_point['x'] * image.shape[1])
+                    start_y = int(start_point['y'] * image.shape[0])
+                    end_x = int(end_point['x'] * image.shape[1])
+                    end_y = int(end_point['y'] * image.shape[0])
 
                     landmarks_points.append([start_x, start_y, end_x, end_y])
 
             pose_logger.info(f"Total visible landmarks connections detected: {len(landmarks_points)}")
 
             # Send only visible landmarks
-            self.send_instruction_pose([], new_width, new_height, sourceId, sessionId, manualId, [], timeStamp,landmarks_points)
+            self.send_instruction_pose([], new_width, new_height, sourceId, sessionId, manualId, [], timeStamp, landmarks_points)
             pose_logger.info(f"draw_annotations:end:---{frame_no}---:{datetime.now()}")
 
         except Exception as e:

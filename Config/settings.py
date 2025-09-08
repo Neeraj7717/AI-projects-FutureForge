@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     stateless_collection_detections : str
     stateless_collection_state : str
     continuity : int
-    log_level : str
+    pose_continuity : int
     llava_endpoint: str
     t2v_endpoint : str
     insights_collection: str
@@ -34,5 +34,6 @@ class Settings(BaseSettings):
     redis_host: str
     redis_port: int
     redis_db: int
+    log_level: str = "info"
     class Config:
         env_file = "./.env"

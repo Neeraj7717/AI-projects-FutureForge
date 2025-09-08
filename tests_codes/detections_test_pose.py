@@ -993,7 +993,7 @@ class Detections:
 
                 response = task_manager.get_next_step(sessionId, sourceId, 0, manualId, frame_bytes,[],{})
 
-            if len(saved_detections) >= config.continuity and len(set(saved_detections)) == 1:
+            if len(saved_detections) >= config.pose_continuity and len(set(saved_detections)) == 1:
                 response  = requests.post(config.t2v_endpoint, json={"text" : f"The object you picked is {object_names}", "gender": 0})
                 data = json.loads(response.content.decode("utf-8"))
                 message={
@@ -1195,7 +1195,7 @@ class Detections:
                 logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
 
 
-            if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
+            if len(saved_detections) == config.pose_continuity and len(set(saved_detections)) == 1:
                 self.remove_detection(sessionId)
                 return task, map
             

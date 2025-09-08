@@ -14,7 +14,11 @@ from typing import Optional
 from Config.settings import Settings
 import threading
 from contextlib import asynccontextmanager
+from Consumer.consumer_ui import start_kafka_listener
 
+
+t = threading.Thread(target=start_kafka_listener)
+t.start()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
