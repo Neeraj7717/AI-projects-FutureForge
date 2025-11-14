@@ -1,0 +1,4 @@
+[submodule "utils/eizen_utils"]
+	path = utils/eizen_utils
+	url = https://github.com/eizen-ai/eizen-utils.git
+	branch = develop
