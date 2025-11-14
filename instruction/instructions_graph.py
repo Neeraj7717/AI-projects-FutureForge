@@ -18,7 +18,7 @@ config = Settings()
 redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
 
 # Configure the root logger to output logs to the terminal
-logging.basicConfig(level=config.log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
  
 # Get the root logger
 logger = logging.getLogger()
