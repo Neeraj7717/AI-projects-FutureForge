@@ -1,0 +1,9 @@
+routing:
+  pose_detection: [19, 23]
+  action_detection: [1, 2, 3, 5, 7]
+  gender_detection: [20, 22]
+  ekyc_detect: [4, 6, 8]
+  text_detect: [9, 10, 12, 13, 14, 16, 18]
+  chair_detect: [11]
+  similar_image: [15]
+  system_monitor: [17]

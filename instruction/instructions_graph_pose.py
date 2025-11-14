@@ -6,12 +6,13 @@ from kafka import KafkaProducer
 from Config.settings import Settings
 import json
 import traceback
+import logging
 import redis
-from utils.logger_utils import setup_logger
+from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
 
 config = Settings()
 
-instruction_logger = setup_logger(name='instruction_graph_pose')
+instruction_logger = LoggerOperations(logger_name='InstructionsPose', log_level=logging.INFO, use_log_file=False)
 
 kafka_url = config.kafka_url
 video_instruction_kafka_topic = config.video_instruction_kafka_topic

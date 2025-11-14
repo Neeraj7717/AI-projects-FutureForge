@@ -9,7 +9,7 @@ import json
 import logging
 import traceback
 import redis
-
+from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
 
 # Load configurations
 config = Settings()
@@ -17,15 +17,8 @@ config = Settings()
 # Connect to Redis
 redis_client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db)
 
-# Configure the root logger to output logs to the terminal
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
- 
-# Get the root logger
-logger = logging.getLogger()
- 
-# Add a StreamHandler to the logger to output logs to the terminal
-console_handler = logging.StreamHandler()
-logger.addHandler(console_handler)
+logger = LoggerOperations(logger_name='InstructionsGraph', log_level=logging.INFO, use_log_file=False)
+
  
 kafka_url = config.kafka_url
 video_instruction_kafka_topic = config.video_instruction_kafka_topic

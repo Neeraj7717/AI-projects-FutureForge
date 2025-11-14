@@ -10,13 +10,14 @@ from kafka import KafkaProducer
 from Config.settings import Settings
 from instruction.instructions_graph_pose import TaskManager
 import redis
-from utils.logger_utils import setup_logger
+from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
+
 
 pose = mp.solutions.pose
 
 config = Settings()
 
-pose_logger = setup_logger(name='pose_model')
+pose_logger = LoggerOperations(logger_name='PoseModel', log_level=logging.INFO, use_log_file=False)
 
 class Pose:
     _instance = None
