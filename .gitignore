@@ -1,72 +1,9 @@
 /.env
 /venv
 /test_env
-/1.jpg
-./webrtc/test/
-./utils/__pycache__/api_client.cpython-310.pyc
-./utils/__pycache__/cv2Operations.cpython-310.pyc
-./utils/__pycache__/directoryOperations.cpython-310.pyc
-./utils/__pycache__/mongo_operations.cpython-310.pyc
-./Config/__pycache__/settings.cpython-310.pyc
-./s3utils/__pycache__/generaloperations.cpython-312.pyc
-./instruction/__pycache__/instructions_graph.cpython-310.pyc
-./instruction/__pycache__/instructions_llava.cpython-310.pyc
-./model/__pycache__/detections.cpython-310.pyc
 vienv/
-utils/__pycache__/api_client.cpython-310.pyc
-utils/__pycache__/cv2Operations.cpython-310.pyc
-utils/__pycache__/directoryOperations.cpython-310.pyc
-utils/__pycache__/mongo_operations.cpython-310.pyc
-instruction/__pycache__/
-model/__pycache__/
-Config/__pycache__/
 env/
-utils/__pycache__/
-.DS_Store
-s3utils/__pycache__/
-checkpoints/gender_model_checkpoints/*
-
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-**/__pycache__
-test_env
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Logs and databases
-*.log
-*.sqlite
-*.db
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Local development settings
-local_settings.py
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.trae
-.history
-Consumer/__pycache__
-instruction/__pycache__
+**/.DS_Store
+**/__pycache__/
+misc
+checkpoints/gender_model_checkpoints

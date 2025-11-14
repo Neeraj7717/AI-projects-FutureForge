@@ -4,7 +4,7 @@ import threading
 import json
 import traceback
 from kafka import KafkaConsumer
-from model.pose_model_test_1 import Pose
+from model.pose_model import Pose
 from Config.settings import Settings
 from utils.logger_utils import setup_logger
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=2000)

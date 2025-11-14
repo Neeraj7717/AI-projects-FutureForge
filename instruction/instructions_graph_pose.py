@@ -375,7 +375,7 @@ class TaskManager:
                         
 
                         instruction_logger.info(f"\n\n{Text}\n\n")
-                        response = requests.post(config.t2v_endpoint, json={"text": Text, "gender": 0})
+                        response = requests.post(config.t2v_endpoint, json={"text": Text, "gender": 1})
                         data = json.loads(response.content.decode("utf-8"))
                         message["audioUrl"] = data["file_path"]
                         if manual["_id"] == 13:

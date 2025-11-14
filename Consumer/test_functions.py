@@ -1,6 +1,4 @@
 import logging
-import gc
-import psutil
 import concurrent.futures
 import traceback
 from model.detections import Detections
@@ -46,15 +44,13 @@ def pose_detection(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         executor.submit(pose_obj.process_squat_analysis, sessionId, frame, things_present, sourceId, manualId, results, frame_no)
  
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
         
 def action_detection(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -67,15 +63,13 @@ def action_detection(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         executor.submit(detector.action_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
  
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
         
 def gender_detection(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -88,15 +82,13 @@ def gender_detection(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         executor.submit(gender.gender_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
 
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
 
 def ekyc_detect(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -109,15 +101,13 @@ def ekyc_detect(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         executor.submit(detector.ekyc_action_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
 
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
 
 def text_detect(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -129,15 +119,13 @@ def text_detect(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         
         executor.submit(detector.text_action_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
 
 def chair_detect(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -149,15 +137,13 @@ def chair_detect(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         
         executor.submit(detector.chair_action_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
 
 def similar_image(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -169,15 +155,13 @@ def similar_image(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         
         executor.submit(detector.get_similar_image_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
 
 def system_monitor(file, sourceId, sessionId, manualId, frame_no, timeStamp):
@@ -189,15 +173,13 @@ def system_monitor(file, sourceId, sessionId, manualId, frame_no, timeStamp):
         
         executor.submit(detector.system_monitor_detection, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
         function_logger.info(f"Frame {frame_no} processing completed.")
-        memory_usage = psutil.virtual_memory().percent
-        if memory_usage > 60:
-            function_logger.info(f"Memory usage is high: {memory_usage}%. Calling gc.collect()...")
-            gc.collect() 
+        
+             
  
     except Exception as e:
         function_logger.error(f"Error processing frame {frame_no}: {e}")
-        function_logger.error(f"Current memory usage: {psutil.virtual_memory().percent}%")
-        gc.collect()
+        
+        
         traceback.print_exc()
 
 

@@ -1,3 +1,10 @@
 vienv
 env
 checkpoints
+vienv
+env
+checkpoints
+test_env
+venv
+*env*
+.env
