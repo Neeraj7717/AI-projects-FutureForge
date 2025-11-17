@@ -10,7 +10,7 @@ config = Settings()
 
 class MongoDBConnector:
     def __init__(self):
-        self.connection_string = config.mongo_connection_string_manual
+        self.connection_string = config.mongo_connection_string_stateless
         self.database_name = config.database_name
         self.collection_name = config.collection_name
         self.insights_collection = config.insights_collection
