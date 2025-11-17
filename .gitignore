@@ -5,5 +5,4 @@ vienv/
 env/
 **/.DS_Store
 **/__pycache__/
-misc
 checkpoints/gender_model_checkpoints

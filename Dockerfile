@@ -1,4 +1,4 @@
-FROM python:3.11-slim-buster
+FROM python:3.11-slim
 
 WORKDIR /usr/app
 COPY requirements.txt /usr/app/
@@ -9,4 +9,5 @@ RUN apt-get update && \
 
 COPY . /usr/app
 ENV PYTHONPATH /usr/app
-CMD ["python3","Consumer/consumer_ui.py"]
+EXPOSE 8001
+CMD ["python3","core/main.py"]

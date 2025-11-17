@@ -1,10 +1,12 @@
 services:
   via-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     image: eizen-via-api
     container_name: via-api
     restart: unless-stopped
     volumes:
       - ./checkpoints:/usr/app/checkpoints
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./.env
