@@ -5,4 +5,6 @@ vienv/
 env/
 **/.DS_Store
 **/__pycache__/
-checkpoints/gender_model_checkpoints
+checkpoints/*
+!checkpoints/.gitkeep
+checkpoints_copy
