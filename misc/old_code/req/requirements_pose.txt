@@ -1,0 +1,16 @@
+# pymongo
+# kafka-python
+# redis
+# boto3
+# mediapipe
+# pydantic_settings
+# requests
+# psutil
+
+kafka-python
+zstandard
+pymongo
+mediapipe
+pydantic_settings
+requests
+redis
