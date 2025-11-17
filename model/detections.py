@@ -23,25 +23,15 @@ from utils.api_client import APIClient
 from instruction.instructions_llava import LlavaInference
 import cv2
 import concurrent.futures
-from s3utils import generaloperations
 from utils.llmOperations import QuestionAnswerModel
 from transformers import AutoImageProcessor, AutoModel
+from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
+from utils.eizen_utils.dms_utils.file_operations import FileOperations
 
-# Load configurations from settings
 config = Settings()
+file_ops = FileOperations()
 
-# Configure detection-specific logger
-detection_logger = logging.getLogger('detection')
-detection_logger.setLevel(logging.INFO)
-detection_logger.propagate = False  # Prevent propagation to root logger
-
-# Create formatter
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# Add console handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
-detection_logger.addHandler(console_handler)
+detection_logger = LoggerOperations(logger_name='Detections', log_level=logging.INFO, use_log_file=False)
 
 reader = easyocr.Reader(['en'])
 
@@ -380,7 +370,11 @@ class Detections:
             bucket_name = 'eizen-dev'
             cloud_path = '/'.join(file.split('/')[3:])
             local_store_path = file.split('/')[-1]
-            file = generaloperations.download_from_s3_bucket(bucket_name, cloud_path, local_store_path)
+            file = file_ops.download_file(
+                cloud_path=file,
+                local_file_name=local_store_path,
+                local_folder="temp"
+            )
             detection_logger.info(f"Downloaded file: {file}")
             # Perform object detection
             # if manualId!=str(4):
@@ -511,7 +505,12 @@ class Detections:
             traceback.print_exc()
 
             return e
- 
+        
+        finally:
+            try:
+                os.remove(file)
+            except:
+                pass 
     
     def send_first_instruction(self,sessionId,frame_bytes,manualId,sourceId):
                     # Connect to Kafka producer and send message
@@ -520,7 +519,7 @@ class Detections:
         # try:
         #     self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
         # except Exception as e:
-        #     logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+        #     detection_logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
         #     pass
         # Assign task based on detections
         data=self.sessionSteps.find_one({"sessionId":sessionId})
@@ -717,19 +716,13 @@ class Detections:
                 pass
                 
             
-            # Connect to Kafka producer and send message
-            try:
-                producer = KafkaProducer(bootstrap_servers=self.kafka_url)
-            except Exception as e:
-                traceback.print_exc()
-                logger.error(f"Error in connecting to Kafka instance: {e}")
-                pass
+            # Send message using existing producer (avoid creating new producers)
             message = {"sessionId": sessionId, "image_byte": frame_bytes, "manualId": manualId}
             try:
-                producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
+                self.producer.send(self.video_details_kafka_topic+sessionId, value=json.dumps(message).encode("utf-8"))
             except Exception as e:
                 traceback.print_exc()
-                logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
+                detection_logger.error(f"Error in writing to Kafka topic {self.video_details_kafka_topic+sessionId}: {e}")
                 pass
             # Assign task based on detections
             
@@ -982,14 +975,14 @@ class Detections:
             # Retrieve detections from MongoDB
             saved_detections = self.get_detection(sessionId)
             if saved_detections:
-                logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
+                detection_logger.debug(f"Retrieved detections from MongoDB: {saved_detections}")
  
             if len(saved_detections) == config.continuity and len(set(saved_detections)) == 1:
                 self.remove_detection(sessionId)
-                return task,map
+                return task, map
             elif len(set(saved_detections)) > 1:
                 self.remove_detection(sessionId)
-                return None
+                return None, None
  
         except Exception as e:
             traceback.print_exc()
