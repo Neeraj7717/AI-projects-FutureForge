@@ -8,3 +8,5 @@ env/
 checkpoints/*
 !checkpoints/.gitkeep
 checkpoints_copy
+**/.DS_Store
+temp
