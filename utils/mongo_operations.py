@@ -8,9 +8,9 @@ import redis
 import traceback
 import logging
 import time
-from utils.logger_utils import setup_logger
+from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
 
-mongo_logger = setup_logger(name='mongo_operations')
+mongo_logger = LoggerOperations(logger_name='mongo_operations', log_level=logging.INFO, use_log_file=False)
 
 config = Settings()
 

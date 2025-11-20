@@ -3,12 +3,11 @@ import logging
 import time
 import traceback
 import pymongo
-from datetime import datetime
 import mediapipe as mp
 import concurrent.futures
 from kafka import KafkaProducer
 from Config.settings import Settings
-from instruction.instructions_graph_pose import TaskManager
+from instruction.instructions_graph import TaskManager
 import redis
 from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
 
@@ -161,7 +160,6 @@ class Pose:
                 hand_status = self.detect_raised_hands(landmarks, frame_shape)
                 if hand_status is not None:
                     things_present.append(hand_status)
-            print("Things Present", sorted(things_present))
             return frame_shape, landmarks, sorted(things_present), start_time
 
         except Exception as e:
@@ -196,7 +194,8 @@ class Pose:
             else:
                 self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(things_present))
         except Exception as e:
-            print
+            pose_logger.error(f"Error in process_squat_analysis: {e}")
+            traceback.print_exc()
             self.instruction_graph(sourceId, sessionId, manualId, frame, sorted(things_present))
 
     def instruction_graph(self, sourceId, sessionId, manualId, frame, things_present):
@@ -255,5 +254,4 @@ class Pose:
         right_wrist_y = landmarks[pose.PoseLandmark.RIGHT_WRIST.value]['y'] * height
         right_shoulder_y = landmarks[pose.PoseLandmark.RIGHT_SHOULDER.value]['y'] * height
         right_hand_down = right_wrist_y > right_shoulder_y
-        print(right_hand_down)
         return "rightHandDown" if right_hand_down else None

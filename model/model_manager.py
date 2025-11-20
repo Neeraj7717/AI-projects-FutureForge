@@ -1,4 +1,3 @@
-# Suppress TensorFlow/MediaPipe internal logs BEFORE any imports
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
@@ -6,10 +5,9 @@ os.environ['GLOG_minloglevel'] = '3'
 import threading
 import logging
 from typing import Optional
+from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
 
-# Configure logger
-logger = logging.getLogger('model_manager')
-logger.setLevel(logging.INFO)
+logger = LoggerOperations(logger_name='model_manager', log_level=logging.INFO, use_log_file=False)
 
 class ModelManager:
     """

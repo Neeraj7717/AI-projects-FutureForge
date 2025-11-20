@@ -15,12 +15,6 @@ from datetime import datetime
 from kafka import KafkaConsumer
 from Config.settings import Settings
 from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
-# Suppress Kafka internal logs
-logging.getLogger('kafka').setLevel(logging.CRITICAL)
-logging.getLogger('kafka.conn').setLevel(logging.CRITICAL)
-logging.getLogger('kafka.client').setLevel(logging.CRITICAL)
-logging.getLogger('kafka.consumer').setLevel(logging.CRITICAL)
-logging.getLogger('kafka.producer').setLevel(logging.CRITICAL)
 
 consumer_logger = LoggerOperations(logger_name='consumer_logger', log_level=logging.INFO, use_log_file=False)
 # Load YAML Configuration
@@ -101,7 +95,7 @@ async def process_kafka_message(message):
         # Determine data field based on function type
         data_field = "poseLandMarks" if function_name == "pose_detection" else "frameUri"
 
-        consumer_logger.debug(f"Processing frame {current_frame_no} for manualId {manual_id} using {function_name}")
+        consumer_logger.info(f"Processing frame {current_frame_no} for manualId {manual_id} using {function_name}")
 
         # Execute function in thread pool
         loop = asyncio.get_event_loop()
