@@ -1,6 +1,6 @@
 services:
   eizen-via-api:
-    image: eizen-via-api
+    image: eizen-via-api:{{BUILD_NUMBER}}
     container_name: eizen-via-api
     restart: unless-stopped
     volumes:
