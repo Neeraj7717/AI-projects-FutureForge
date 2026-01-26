@@ -1,0 +1,114 @@
+{
+  "_id": {
+    "$oid": "698e4b2d549af869e606ff99"
+  },
+  "sopId": "EZA_SOP_PHONE_ASSEMBLY",
+  "sop_id": "EZA_SOP_PHONE_ASSEMBLY",
+  "type": "cycle",
+  "sopType": "cycle",
+  "name": "Phone Assembly Process",
+  "description": "Standard Operating Procedure for phone assembly verification",
+  "completeAllActivity": true,
+  "startActivity": [
+    "PHONE_BODY_PRESENT"
+  ],
+  "start_activity": [
+    "PHONE_BODY_PRESENT"
+  ],
+  "endActivity": [
+    "ASSEMBLY_COMPLETE"
+  ],
+  "end_activity": [
+    "ASSEMBLY_COMPLETE"
+  ],
+  "activities": [
+    {
+      "activityId": "PHONE_BODY_PRESENT",
+      "activity_id": "PHONE_BODY_PRESENT",
+      "prevAct": [],
+      "prev_act": [],
+      "nextAct": [
+        "SCREEN_ATTACHED"
+      ],
+      "next_act": [
+        "SCREEN_ATTACHED"
+      ],
+      "model_class": ["cell phone"],
+      "model_id": "yolov8n",
+      "function": null,
+      "expectedTime": 3,
+      "expected_time": 3,
+      "instruction": "Show the phone body",
+      "description": "Show the phone body"
+    },
+    {
+      "activityId": "SCREEN_ATTACHED",
+      "activity_id": "SCREEN_ATTACHED",
+      "prevAct": [
+        "PHONE_BODY_PRESENT"
+      ],
+      "prev_act": [
+        "PHONE_BODY_PRESENT"
+      ],
+      "nextAct": [
+        "COMPONENTS_PLACED"
+      ],
+      "next_act": [
+        "COMPONENTS_PLACED"
+      ],
+      "model_class": ["cell phone"],
+      "model_id": "yolov8n",
+      "function": null,
+      "expectedTime": 4,
+      "expected_time": 4,
+      "instruction": "Show the display or screen",
+      "description": "Show the display or screen"
+    },
+    {
+      "activityId": "COMPONENTS_PLACED",
+      "activity_id": "COMPONENTS_PLACED",
+      "prevAct": [
+        "SCREEN_ATTACHED"
+      ],
+      "prev_act": [
+        "SCREEN_ATTACHED"
+      ],
+      "nextAct": [
+        "ASSEMBLY_COMPLETE"
+      ],
+      "next_act": [
+        "ASSEMBLY_COMPLETE"
+      ],
+      "model_class": ["cell phone"],
+      "model_id": "yolov8n",
+      "function": null,
+      "expectedTime": 3,
+      "expected_time": 3,
+      "instruction": "Show the flash or camera",
+      "description": "Show the flash or camera"
+    },
+    {
+      "activityId": "ASSEMBLY_COMPLETE",
+      "activity_id": "ASSEMBLY_COMPLETE",
+      "prevAct": [
+        "COMPONENTS_PLACED"
+      ],
+      "prev_act": [
+        "COMPONENTS_PLACED"
+      ],
+      "nextAct": [],
+      "next_act": [],
+      "model_class": ["cell phone"],
+      "model_id": "yolov8n",
+      "function": null,
+      "expectedTime": 2,
+      "expected_time": 2,
+      "instruction": "Show the complete phone",
+      "description": "Show the complete phone"
+    }
+  ],
+  "createdBy": "system",
+  "createdAt": "2026-01-21T15:55:00.000Z",
+  "modelIds": ["yolov8n"],
+  "sourceIds": []
+}

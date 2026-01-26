@@ -1,0 +1,39 @@
+{
+  "sourceId": null,
+  "start_time": null,
+  "end_time": null,
+  "videoId": null,
+  "thumbnail": null,
+  "annotated_video": null,
+  "fps": 30,
+  "sop_id": "EZA_SOP_GENDER",
+  "requestData": {
+    "boxId": null,
+    "inductCount": 0
+  },
+  "sopData": {
+    "activity_steps": [
+      "face_detected",
+      "gender_identified"
+    ],
+    "expected_step_times": {
+      "face_detected": 2,
+      "gender_identified": 3
+    },
+    "expected_cycle_time": 5
+  },
+  "resultData": {
+    "total_cycles": 0,
+    "kpi": {
+      "successful_gender_detections": 0,
+      "male_detections": 0,
+      "female_detections": 0,
+      "face_lost_count": 0,
+      "avg_cycle_time": 0.0,
+      "pph": 0,
+      "detection_accuracy": "0/0"
+    },
+    "cycles": [],
+    "anomalies": []
+  }
+}

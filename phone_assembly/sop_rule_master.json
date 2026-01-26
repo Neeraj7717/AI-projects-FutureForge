@@ -1,0 +1,62 @@
+[
+  {
+    "_id": "is_point_inside_box",
+    "rule_name": "is_point_inside_box",
+    "desc": "Checks whether the points are inside the box",
+    "input": [
+      "primary_box",
+      "secondary_box"
+    ],
+    "output": [
+      "decision"
+    ]
+  },
+  {
+    "_id": "is_not_carrying_item",
+    "rule_name": "is_not_carrying_item",
+    "desc": "Checks it is not carrying the item",
+    "input": [
+      "primary_box",
+      "secondary_box"
+    ],
+    "output": [
+      "decision"
+    ]
+  },
+  {
+    "_id": "is_carrying_item",
+    "rule_name": "is_carrying_item",
+    "desc": "Checks it is carrying the item",
+    "input": [
+      "primary_box",
+      "secondary_box"
+    ],
+    "output": [
+      "decision"
+    ]
+  },
+  {
+    "_id": "is_box_outside_box",
+    "rule_name": "is_box_outside_box",
+    "desc": "Checks if the box is outside of the box",
+    "input": [
+      "primary_box",
+      "secondary_box"
+    ],
+    "output": [
+      "decision"
+    ]
+  },
+  {
+    "_id": "is_item_misplaced_by_iou",
+    "rule_name": "is_item_misplaced_by_iou",
+    "desc": "Checks the item is misplaced by iou",
+    "input": [
+      "primary_box",
+      "secondary_box"
+    ],
+    "output": [
+      "decision"
+    ]
+  }
+]

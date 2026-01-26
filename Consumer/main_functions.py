@@ -81,7 +81,7 @@ def gender_detection(file, sourceId, sessionId, manualId, frame_no, timeStamp):
             return
 
         function_logger.debug(f"Processing gender frame {frame_no}...")
-        executor.submit(gender.gender_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId)
+        executor.submit(gender.gender_detector, file=file, sourceId=sourceId, sessionId=sessionId, manualId=manualId, frame_no=frame_no)
         function_logger.debug(f"Frame {frame_no} processing completed.")
 
     except Exception as e:

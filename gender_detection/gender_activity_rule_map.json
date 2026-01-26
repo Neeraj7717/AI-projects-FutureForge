@@ -1,0 +1,119 @@
+{
+    "_id": {
+        "$oid": "696dca58280cdc5ac16cfaf0"
+    },
+    "sop_id": "EZA_SOP_GENDER",
+    "cycle_kpi_updates": {
+        "on_cycle_complete_success": [
+            {
+                "target": "kpi.successful_gender_detections",
+                "op": "increment",
+                "value": 1
+            }
+        ]
+    },
+    "rules_map": [
+        {
+            "activity_id": "FACE_DETECTED",
+            "predefined_values": {
+                "gender_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_face_detected": {
+                        "static_values": {},
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Face",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "GENDER_IDENTIFIED",
+            "predefined_values": {
+                "gender_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_face_detected": {
+                        "static_values": {},
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Face",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "is_gender_detected": {
+                        "static_values": {
+                            "gender": "Male"
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        },
+                        "kpi_updates": {
+                            "on_true": [
+                                {
+                                    "target": "kpi.male_detections",
+                                    "op": "increment",
+                                    "value": 1
+                                }
+                            ],
+                            "on_false": []
+                        }
+                    }
+                },
+                {
+                    "is_gender_detected": {
+                        "static_values": {
+                            "gender": "Female"
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        },
+                        "kpi_updates": {
+                            "on_true": [
+                                {
+                                    "target": "kpi.female_detections",
+                                    "op": "increment",
+                                    "value": 1
+                                }
+                            ],
+                            "on_false": []
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                [
+                    {
+                        "is_face_not_detected": {
+                            "static_values": {
+                                "threshold": 5
+                            },
+                            "mapped_values": {
+                                "primary_box": "executor_input_data.detections.Face",
+                                "things_present": "executor_input_data.things_present"
+                            },
+                            "kpi_updates": {
+                                "on_true": [
+                                    {
+                                        "target": "kpi.face_lost_count",
+                                        "op": "increment",
+                                        "value": 1
+                                    }
+                                ],
+                                "on_false": []
+                            }
+                        }
+                    }
+                ]
+            ],
+            "output_to": "derived_data"
+        }
+    ]
+}

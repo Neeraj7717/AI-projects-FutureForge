@@ -1,0 +1,67 @@
+[
+    {
+        "_id": "is_face_detected",
+        "rule_name": "is_face_detected",
+        "desc": "Checks whether a face is detected in the frame (by bounding box or things_present)",
+        "input": [
+            "primary_box",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "face_detected"
+        ]
+    },
+    {
+        "_id": "is_gender_detected",
+        "rule_name": "is_gender_detected",
+        "desc": "Checks if a specific gender (Male or Female) is detected in things_present",
+        "input": [
+            "gender",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "gender_detected"
+        ]
+    },
+    {
+        "_id": "is_face_not_detected",
+        "rule_name": "is_face_not_detected",
+        "desc": "Checks if face is NOT detected in the frame (used for anomaly detection)",
+        "input": [
+            "primary_box",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "face_not_detected"
+        ]
+    },
+    {
+        "_id": "is_age_detected",
+        "rule_name": "is_age_detected",
+        "desc": "Checks if a specific age range is detected in things_present (optional rule for future use)",
+        "input": [
+            "age_range",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "age_detected"
+        ]
+    },
+    {
+        "_id": "is_emotion_detected",
+        "rule_name": "is_emotion_detected",
+        "desc": "Checks if a specific emotion is detected in things_present (optional rule for future use)",
+        "input": [
+            "emotion",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "emotion_detected"
+        ]
+    }
+]

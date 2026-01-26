@@ -1,0 +1,66 @@
+[
+    {
+        "_id": "is_person_present",
+        "rule_name": "is_person_present",
+        "desc": "Checks whether a person is present in the frame",
+        "input": [
+            "primary_box",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "person_detected"
+        ]
+    },
+    {
+        "_id": "is_hand_position",
+        "rule_name": "is_hand_position",
+        "desc": "Checks if a specific hand position is detected (leftHandAbove90, leftHandBelow90, rightHandAbove90, rightHandBelow90, bothHandsAbove90, bothHandsBelow90)",
+        "input": [
+            "hand_position",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "hand_position_detected"
+        ]
+    },
+    {
+        "_id": "matches_pose_combination",
+        "rule_name": "matches_pose_combination",
+        "desc": "Checks if things_present matches an expected combination (replicates original pose detection logic)",
+        "input": [
+            "expected_combination",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "match"
+        ]
+    },
+    {
+        "_id": "has_any_hand_raised",
+        "rule_name": "has_any_hand_raised",
+        "desc": "Checks if any hand is raised (any hand position detected)",
+        "input": [
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "hand_raised"
+        ]
+    },
+    {
+        "_id": "is_person_not_present",
+        "rule_name": "is_person_not_present",
+        "desc": "Checks if person is NOT present in the frame (used for anomaly detection)",
+        "input": [
+            "primary_box",
+            "things_present"
+        ],
+        "output": [
+            "decision",
+            "person_not_detected"
+        ]
+    }
+]

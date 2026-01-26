@@ -1,0 +1,308 @@
+{
+    "_id": {
+        "$oid": "696dca58280cdc5ac16cfae0"
+    },
+    "sop_id": "EZA_SOP_POSE",
+    "cycle_kpi_updates": {
+        "on_cycle_complete_success": [
+            {
+                "target": "kpi.successful_pose_cycles",
+                "op": "increment",
+                "value": 1
+            }
+        ]
+    },
+    "rules_map": [
+        {
+            "activity_id": "PERSON_PRESENT",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "HAND_RAISED",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "is_hand_position": {
+                        "static_values": {
+                            "hand_position": "rightHandAbove90",
+                            "persistence": 15
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                {
+                    "is_person_not_present": {
+                        "static_values": {
+                            "threshold": 30,
+                            "persistence": 30
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "HANDS_DOWN",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "matches_pose_combination": {
+                        "static_values": {
+                            "expected_combination": ["personPresent"],
+                            "persistence": 15
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                {
+                    "is_person_not_present": {
+                        "static_values": {
+                            "threshold": 30,
+                            "persistence": 30
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "LEFT_HAND_RAISED",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "is_hand_position": {
+                        "static_values": {
+                            "hand_position": "leftHandAbove90",
+                            "persistence": 15
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                {
+                    "is_person_not_present": {
+                        "static_values": {
+                            "threshold": 30,
+                            "persistence": 30
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "LEFT_HAND_DOWN",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "matches_pose_combination": {
+                        "static_values": {
+                            "expected_combination": ["personPresent"],
+                            "persistence": 15
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                {
+                    "is_person_not_present": {
+                        "static_values": {
+                            "threshold": 30,
+                            "persistence": 30
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "BOTH_HANDS_RAISED",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "is_hand_position": {
+                        "static_values": {
+                            "hand_position": "bothHandsAbove90",
+                            "persistence": 15
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                {
+                    "is_person_not_present": {
+                        "static_values": {
+                            "threshold": 30,
+                            "persistence": 30
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "output_to": "derived_data"
+        },
+        {
+            "activity_id": "BOTH_HANDS_DOWN",
+            "predefined_values": {
+                "pose_continuity": 3
+            },
+            "activity_rules": [
+                {
+                    "is_person_present": {
+                        "static_values": {
+                            "persistence": 3
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                },
+                {
+                    "matches_pose_combination": {
+                        "static_values": {
+                            "expected_combination": ["personPresent"],
+                            "persistence": 15
+                        },
+                        "mapped_values": {
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "anomaly_rules": [
+                {
+                    "is_person_not_present": {
+                        "static_values": {
+                            "threshold": 30,
+                            "persistence": 30
+                        },
+                        "mapped_values": {
+                            "primary_box": "executor_input_data.detections.Person",
+                            "things_present": "executor_input_data.things_present"
+                        }
+                    }
+                }
+            ],
+            "output_to": "derived_data"
+        }
+    ]
+}

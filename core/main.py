@@ -120,11 +120,8 @@ async def detect_pose_endpoint(input_data: Input):
         async def process_followup_tasks():
             try:
                 frame, results, things_present, start_time = await future_pose_processing  # Await the task completion
-                # Run the next two tasks in parallel using asyncio.gather
-                await asyncio.gather(
-                    asyncio.to_thread(pose_obj.draw_annotations, frame, results, input_data.sourceId, input_data.sessionId, input_data.manualId, start_time, current_frame_no, input_data.timeStamp),
-                    asyncio.to_thread(pose_obj.process_squat_analysis, input_data.sessionId, frame, things_present, input_data.sourceId, input_data.manualId, results, current_frame_no)
-                )
+                # Process squat analysis (draw_annotations method doesn't exist, so we skip it)
+                await asyncio.to_thread(pose_obj.process_squat_analysis, input_data.sessionId, frame, things_present, input_data.sourceId, input_data.manualId, results, current_frame_no)
 
             except Exception as e:
                 print(f"Error processing pose detection result: {e}")

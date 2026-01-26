@@ -24,6 +24,7 @@ from transformers import AutoImageProcessor, AutoModel
 from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
 from utils.eizen_utils.dms_utils.file_operations import FileOperations
 from utils.semantic_similarity import SentenceSimilarityCalculator
+from model.sop_manager import sop_manager
 
 config = Settings()
 file_ops = FileOperations()
@@ -263,8 +264,14 @@ class Detections:
             detection_logger.debug(f"The Detections are {things_present}")
             a = detection_output[0].boxes
             xyxy = a.xyxy.cpu().numpy()
+            cls_ids = a.cls.cpu().numpy()  # Get class IDs for each box
             new_height, new_width = file.shape[:2]
             detection_logger.info("Completed Detection")
+
+            # Execute SOP after detections
+            self._execute_sop_after_action_detection(
+                sourceId, sessionId, manualId, xyxy, cls_ids, names, new_width, new_height
+            )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
                 # Assign task based on detections
@@ -861,6 +868,76 @@ class Detections:
             traceback.print_exc()
             detection_logger.error(f"Error occurred: {e}")
             return None, None
+    
+    def _execute_sop_after_action_detection(self, sourceId, sessionId, manualId, xyxy, cls_ids, names, width, height):
+        """
+        Execute SOP unified executor after action detection.
+        Converts YOLO detection results to SOP format.
+        
+        Args:
+            sourceId: Source identifier
+            manualId: Manual identifier
+            xyxy: Bounding boxes from YOLO (numpy array) - shape: [N, 4]
+            cls_ids: Class IDs for each box (numpy array) - shape: [N]
+            names: Dictionary mapping class IDs to names
+            width: Image width
+            height: Image height
+        """
+        try:
+            import time as time_module
+            
+            # Convert YOLO detections to SOP format
+            # SOP expects: Dict[str, List[List[float]]] where each list is [x1, y1, x2, y2]
+            detections = {}
+            things_present = []
+            
+            if xyxy is not None and len(xyxy) > 0:
+                # Group detections by class name
+                for i, box in enumerate(xyxy):
+                    # box is [x1, y1, x2, y2] in pixel coordinates
+                    # Convert to list format
+                    box_list = box.tolist() if hasattr(box, 'tolist') else list(box)
+                    
+                    # Get class name for this detection using class ID
+                    if i < len(cls_ids):
+                        cls_id = int(cls_ids[i])
+                        class_name = names.get(cls_id, f"Class_{cls_id}")
+                    else:
+                        class_name = "Unknown"
+                    
+                    # Track unique classes
+                    if class_name not in things_present:
+                        things_present.append(class_name)
+                    
+                    # Add to detections dict
+                    if class_name not in detections:
+                        detections[class_name] = []
+                    detections[class_name].append(box_list)
+            
+            # Execute SOP
+            sop_result = sop_manager.execute_sop(
+                sourceId=sourceId,
+                manualId=str(manualId),
+                detections=detections,
+                frame_number=0,  # Frame number not available here, can be passed if needed
+                timestamp=str(time_module.time()),
+                additional_data={
+                    "things_present": things_present,
+                    "image_width": width,
+                    "image_height": height,
+                    "detected_classes": things_present,
+                    "sessionId": sessionId
+                }
+            )
+            
+            if sop_result:
+                detection_logger.debug(f"SOP executed: activity={sop_result.get('current_activity')}, "
+                                    f"cycle={sop_result.get('cycle_count')}, "
+                                    f"success={sop_result.get('success')}")
+                
+        except Exception as e:
+            detection_logger.debug(f"SOP execution skipped or failed: {e}")
+            # Don't raise - SOP is optional and shouldn't break detection flow
     def assign_current_task(self, things_present, _sourceId, sessionId,manualId):
         """Perform object detection on the provided image file."""
         try:

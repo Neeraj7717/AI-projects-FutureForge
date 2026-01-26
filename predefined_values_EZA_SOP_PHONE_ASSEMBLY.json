@@ -1,0 +1,3 @@
+{
+    "note": "persistence is read from rule static_values; predefined_values is not used for persistence"
+}

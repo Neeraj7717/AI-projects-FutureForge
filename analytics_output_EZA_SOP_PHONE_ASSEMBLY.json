@@ -1,0 +1,126 @@
+{
+  "sourceId": null,
+  "start_time": null,
+  "end_time": null,
+  "videoId": null,
+  "thumbnail": null,
+  "annotated_video": null,
+  "fps": 30,
+  "sop_id": "EZA_SOP_PHONE_ASSEMBLY",
+  "requestData": {
+    "boxId": null,
+    "inductCount": 0
+  },
+  "sopData": {
+    "activity_steps": [
+      "phone_body_present",
+      "screen_attached",
+      "components_placed",
+      "assembly_complete"
+    ],
+    "expected_step_times": {
+      "phone_body_present": 3,
+      "screen_attached": 4,
+      "components_placed": 3,
+      "assembly_complete": 2
+    },
+    "expected_cycle_time": 12
+  },
+  "resultData": {
+    "total_cycles": 1,
+    "kpi": {
+      "screen_attachment_attempts": 1,
+      "successful_assemblies": 0,
+      "failed_assemblies": 0,
+      "misplacement_count": 0,
+      "avg_cycle_time": 3.4,
+      "pph": 0,
+      "order_fulfilment_ratio": "0/1"
+    },
+    "cycles": [
+      {
+        "cycle_number": 1,
+        "start_frame": 40,
+        "end_frame": 142,
+        "start_time_sec": 1.3333333333333333,
+        "end_time_sec": 4.733333333333333,
+        "start_timestamp": {
+          "$date": "2026-01-23T18:39:28.953840"
+        },
+        "end_timestamp": {
+          "$date": null
+        },
+        "actual_time_sec": 3.4000000000000004,
+        "expected_time_sec": 15,
+        "completed": true,
+        "has_anomaly": false,
+        "steps": [
+          {
+            "name": "phone_body_present",
+            "frame_start": 40,
+            "frame_end": 52,
+            "time_start_sec": 1.3333333333333333,
+            "time_end_sec": 1.7333333333333334,
+            "timestamp_start": {
+              "$date": "2026-01-23T18:39:28.953840"
+            },
+            "timestamp_end": {
+              "$date": "2026-01-23T18:39:30.159418"
+            },
+            "actual_time_sec": 0.40000000000000013,
+            "expected_time_sec": 3,
+            "completed": true
+          },
+          {
+            "name": "screen_attached",
+            "frame_start": 52,
+            "frame_end": 93,
+            "time_start_sec": 1.7333333333333334,
+            "time_end_sec": 3.1,
+            "timestamp_start": {
+              "$date": "2026-01-23T18:39:30.159418"
+            },
+            "timestamp_end": {
+              "$date": "2026-01-23T18:39:34.241514"
+            },
+            "actual_time_sec": 1.3666666666666667,
+            "expected_time_sec": 4,
+            "completed": true
+          },
+          {
+            "name": "components_placed",
+            "frame_start": 93,
+            "frame_end": 141,
+            "time_start_sec": 3.1,
+            "time_end_sec": 4.7,
+            "timestamp_start": {
+              "$date": "2026-01-23T18:39:34.241514"
+            },
+            "timestamp_end": {
+              "$date": "2026-01-23T18:39:39.029247"
+            },
+            "actual_time_sec": 1.6,
+            "expected_time_sec": 3,
+            "completed": true
+          },
+          {
+            "name": "assembly_complete",
+            "frame_start": 141,
+            "frame_end": null,
+            "time_start_sec": 4.7,
+            "time_end_sec": null,
+            "timestamp_start": {
+              "$date": "2026-01-23T18:39:39.029247"
+            },
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 2,
+            "completed": false
+          }
+        ],
+        "anomaly_clips": []
+      }
+    ],
+    "anomalies": []
+  }
+}

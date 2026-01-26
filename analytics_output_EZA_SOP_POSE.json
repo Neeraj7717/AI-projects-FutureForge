@@ -1,0 +1,124 @@
+{
+  "kpi": {},
+  "cycles": [],
+  "anomalies": [],
+  "resultData": {
+    "cycles": [
+      {
+        "cycle_number": 1,
+        "start_frame": 3,
+        "end_frame": 96,
+        "start_time_sec": 0.1,
+        "end_time_sec": 3.2,
+        "start_timestamp": {
+          "$date": "2026-01-23T17:34:34.469250"
+        },
+        "end_timestamp": {
+          "$date": null
+        },
+        "actual_time_sec": 3.1,
+        "expected_time_sec": 15,
+        "completed": false,
+        "has_anomaly": true,
+        "steps": [
+          {
+            "name": "person_present",
+            "frame_start": 3,
+            "frame_end": 47,
+            "time_start_sec": 0.1,
+            "time_end_sec": 1.5666666666666667,
+            "timestamp_start": {
+              "$date": "2026-01-23T17:34:34.469250"
+            },
+            "timestamp_end": {
+              "$date": "2026-01-23T17:34:38.839711"
+            },
+            "actual_time_sec": 1.4666666666666666,
+            "expected_time_sec": 2,
+            "completed": true
+          },
+          {
+            "name": "hand_raised",
+            "frame_start": 47,
+            "frame_end": null,
+            "time_start_sec": 1.5666666666666667,
+            "time_end_sec": null,
+            "timestamp_start": {
+              "$date": "2026-01-23T17:34:38.839711"
+            },
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 3,
+            "completed": false
+          },
+          {
+            "name": "hands_down",
+            "frame_start": null,
+            "frame_end": null,
+            "time_start_sec": null,
+            "time_end_sec": null,
+            "timestamp_start": null,
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 2,
+            "completed": false
+          },
+          {
+            "name": "left_hand_raised",
+            "frame_start": null,
+            "frame_end": null,
+            "time_start_sec": null,
+            "time_end_sec": null,
+            "timestamp_start": null,
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 3,
+            "completed": false
+          },
+          {
+            "name": "left_hand_down",
+            "frame_start": null,
+            "frame_end": null,
+            "time_start_sec": null,
+            "time_end_sec": null,
+            "timestamp_start": null,
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 2,
+            "completed": false
+          },
+          {
+            "name": "both_hands_raised",
+            "frame_start": null,
+            "frame_end": null,
+            "time_start_sec": null,
+            "time_end_sec": null,
+            "timestamp_start": null,
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 3,
+            "completed": false
+          },
+          {
+            "name": "both_hands_down",
+            "frame_start": null,
+            "frame_end": null,
+            "time_start_sec": null,
+            "time_end_sec": null,
+            "timestamp_start": null,
+            "timestamp_end": null,
+            "actual_time_sec": null,
+            "expected_time_sec": 2,
+            "completed": false
+          }
+        ],
+        "anomaly_clips": []
+      }
+    ],
+    "kpi": {
+      "order_fulfilment_ratio": "0/1"
+    },
+    "anomalies": [],
+    "total_cycles": 1
+  }
+}

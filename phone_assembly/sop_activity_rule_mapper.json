@@ -1,0 +1,115 @@
+{
+  "_id": {
+    "$oid": "698e4b2d549af869e606ffaa"
+  },
+  "sop_id": "EZA_SOP_PHONE_ASSEMBLY",
+  "cycle_kpi_updates": {
+    "on_cycle_complete_success": [
+      {
+        "target": "kpi.successful_assemblies",
+        "op": "increment",
+        "value": 1
+      }
+    ]
+  },
+  "rules_map": [
+    {
+      "activity_id": "PHONE_BODY_PRESENT",
+      "predefined_values": {
+        "note": "persistence is read from rule static_values; predefined_values is not used for persistence"
+      },
+      "activity_rules": [
+        {
+          "is_carrying_item": {
+            "static_values": {
+              "threshold": 0.01,
+              "persistence": 15
+            },
+            "mapped_values": {
+              "primary_box": "executor_input_data.cell phone",
+              "secondary_box": "executor_input_data.cell phone"
+            }
+          }
+        }
+      ],
+      "anomaly_rules": [],
+      "output_to": "derived_data"
+    },
+    {
+      "activity_id": "SCREEN_ATTACHED",
+      "predefined_values": {
+        "note": "persistence is read from rule static_values; predefined_values is not used for persistence"
+      },
+      "activity_rules": [
+        {
+          "is_carrying_item": {
+            "static_values": {
+              "threshold": 0.01,
+              "persistence": 20
+            },
+            "mapped_values": {
+              "primary_box": "executor_input_data.cell phone",
+              "secondary_box": "executor_input_data.cell phone"
+            },
+            "kpi_updates": {
+              "on_true": [
+                {
+                  "target": "kpi.screen_attachment_attempts",
+                  "op": "increment",
+                  "value": 1
+                }
+              ],
+              "on_false": []
+            }
+          }
+        }
+      ],
+      "anomaly_rules": [],
+      "output_to": "derived_data"
+    },
+    {
+      "activity_id": "COMPONENTS_PLACED",
+      "predefined_values": {
+        "note": "persistence is read from rule static_values; predefined_values is not used for persistence"
+      },
+      "activity_rules": [
+        {
+          "is_carrying_item": {
+            "static_values": {
+              "threshold": 0.01,
+              "persistence": 20
+            },
+            "mapped_values": {
+              "primary_box": "executor_input_data.cell phone",
+              "secondary_box": "executor_input_data.cell phone"
+            }
+          }
+        }
+      ],
+      "anomaly_rules": [],
+      "output_to": "derived_data"
+    },
+    {
+      "activity_id": "ASSEMBLY_COMPLETE",
+      "predefined_values": {
+        "note": "persistence is read from rule static_values; predefined_values is not used for persistence"
+      },
+      "activity_rules": [
+        {
+          "is_carrying_item": {
+            "static_values": {
+              "threshold": 0.01,
+              "persistence": 25
+            },
+            "mapped_values": {
+              "primary_box": "executor_input_data.cell phone",
+              "secondary_box": "executor_input_data.cell phone"
+            }
+          }
+        }
+      ],
+      "anomaly_rules": [],
+      "output_to": "derived_data"
+    }
+  ]
+}

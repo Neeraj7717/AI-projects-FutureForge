@@ -1,0 +1,181 @@
+[
+    {
+        "_id": {
+            "$oid": "6960cc4c0bfb907a558c9395"
+        },
+        "sopId": "EZA_SOP_POSE",
+        "sop_id": "EZA_SOP_POSE",
+        "type": "cycle",
+        "name": "Pose Detection and Hand Position Tracking",
+        "completeAllActivity": true,
+        "startActivity": [
+            "PERSON_PRESENT"
+        ],
+        "start_activity": [
+            "PERSON_PRESENT"
+        ],
+        "endActivity": [
+            "BOTH_HANDS_DOWN"
+        ],
+        "end_activity": [
+            "BOTH_HANDS_DOWN"
+        ],
+        "activities": [
+            {
+                "activityId": "PERSON_PRESENT",
+                "activity_id": "PERSON_PRESENT",
+                "prevAct": [],
+                "prev_act": [],
+                "nextAct": [
+                    "HAND_RAISED"
+                ],
+                "next_act": [
+                    "HAND_RAISED"
+                ],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 2,
+                "expected_time": 2,
+                "instruction": "Please stand",
+                "description": "Please stand"
+            },
+            {
+                "activityId": "HAND_RAISED",
+                "activity_id": "HAND_RAISED",
+                "prevAct": [
+                    "PERSON_PRESENT"
+                ],
+                "prev_act": [
+                    "PERSON_PRESENT"
+                ],
+                "nextAct": [
+                    "HANDS_DOWN"
+                ],
+                "next_act": [
+                    "HANDS_DOWN"
+                ],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 3,
+                "expected_time": 3,
+                "instruction": "Please raise your right hand",
+                "description": "Please raise your right hand"
+            },
+            {
+                "activityId": "HANDS_DOWN",
+                "activity_id": "HANDS_DOWN",
+                "prevAct": [
+                    "HAND_RAISED"
+                ],
+                "prev_act": [
+                    "HAND_RAISED"
+                ],
+                "nextAct": [
+                    "LEFT_HAND_RAISED"
+                ],
+                "next_act": [
+                    "LEFT_HAND_RAISED"
+                ],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 2,
+                "expected_time": 2,
+                "instruction": "Please lower your right hand",
+                "description": "Please lower your right hand"
+            },
+            {
+                "activityId": "LEFT_HAND_RAISED",
+                "activity_id": "LEFT_HAND_RAISED",
+                "prevAct": [
+                    "HANDS_DOWN"
+                ],
+                "prev_act": [
+                    "HANDS_DOWN"
+                ],
+                "nextAct": [
+                    "LEFT_HAND_DOWN"
+                ],
+                "next_act": [
+                    "LEFT_HAND_DOWN"
+                ],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 3,
+                "expected_time": 3,
+                "instruction": "Please raise your left hand",
+                "description": "Please raise your left hand"
+            },
+            {
+                "activityId": "LEFT_HAND_DOWN",
+                "activity_id": "LEFT_HAND_DOWN",
+                "prevAct": [
+                    "LEFT_HAND_RAISED"
+                ],
+                "prev_act": [
+                    "LEFT_HAND_RAISED"
+                ],
+                "nextAct": [
+                    "BOTH_HANDS_RAISED"
+                ],
+                "next_act": [
+                    "BOTH_HANDS_RAISED"
+                ],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 2,
+                "expected_time": 2,
+                "instruction": "Please lower your left hand",
+                "description": "Please lower your left hand"
+            },
+            {
+                "activityId": "BOTH_HANDS_RAISED",
+                "activity_id": "BOTH_HANDS_RAISED",
+                "prevAct": [
+                    "LEFT_HAND_DOWN"
+                ],
+                "prev_act": [
+                    "LEFT_HAND_DOWN"
+                ],
+                "nextAct": [
+                    "BOTH_HANDS_DOWN"
+                ],
+                "next_act": [
+                    "BOTH_HANDS_DOWN"
+                ],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 3,
+                "expected_time": 3,
+                "instruction": "Please raise both hands",
+                "description": "Please raise both hands"
+            },
+            {
+                "activityId": "BOTH_HANDS_DOWN",
+                "activity_id": "BOTH_HANDS_DOWN",
+                "prevAct": [
+                    "BOTH_HANDS_RAISED"
+                ],
+                "prev_act": [
+                    "BOTH_HANDS_RAISED"
+                ],
+                "nextAct": [],
+                "next_act": [],
+                "model_class": [],
+                "model_id": null,
+                "function": null,
+                "expectedTime": 2,
+                "expected_time": 2,
+                "instruction": "Please lower both hands",
+                "description": "Please lower both hands"
+            }
+        ],
+        "createdBy": "user",
+        "createdAt": "2025-01-20T10:00:00.000000+05:30"
+    }
+]

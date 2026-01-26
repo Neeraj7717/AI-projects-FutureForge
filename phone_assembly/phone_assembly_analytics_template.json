@@ -1,0 +1,43 @@
+{
+  "sourceId": null,
+  "start_time": null,
+  "end_time": null,
+  "videoId": null,
+  "thumbnail": null,
+  "annotated_video": null,
+  "fps": 30,
+  "sop_id": "EZA_SOP_PHONE_ASSEMBLY",
+  "requestData": {
+    "boxId": null,
+    "inductCount": 0
+  },
+  "sopData": {
+    "activity_steps": [
+      "phone_body_present",
+      "screen_attached",
+      "components_placed",
+      "assembly_complete"
+    ],
+    "expected_step_times": {
+      "phone_body_present": 3,
+      "screen_attached": 4,
+      "components_placed": 3,
+      "assembly_complete": 2
+    },
+    "expected_cycle_time": 12
+  },
+  "resultData": {
+    "total_cycles": 0,
+    "kpi": {
+      "screen_attachment_attempts": 0,
+      "successful_assemblies": 0,
+      "failed_assemblies": 0,
+      "misplacement_count": 0,
+      "avg_cycle_time": 0.0,
+      "pph": 0,
+      "order_fulfilment_ratio": "0/0"
+    },
+    "cycles": [],
+    "anomalies": []
+  }
+}

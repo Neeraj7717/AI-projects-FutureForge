@@ -12,6 +12,7 @@ from deepface import DeepFace
 from Config.settings import Settings
 from instruction.instructions_graph import TaskManager
 from utils.eizen_utils.logger_utils.logger_operations import LoggerOperations
+from model.sop_manager import sop_manager
 import logging
 import threading
 
@@ -229,9 +230,9 @@ class ProcessFrame:
         return
 
 
-    def gender_detector(self, file, sourceId, sessionId, manualId):
+    def gender_detector(self, file, sourceId, sessionId, manualId, frame_no=0):
         try:
-            logger.info(f"Processing gender detection for sessionId: {sessionId}")
+            logger.info(f"Processing gender detection for sessionId: {sessionId}, frame: {frame_no}")
             start_time = time.time()
             _, encoded = file.split(",", 1)
             image_bytes = base64.b64decode(encoded)
@@ -243,6 +244,21 @@ class ProcessFrame:
             
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             frame, gender_data, xyxy = self.processFrame(frame, self.ageGenderModel, self.emotionModel)
+            
+            # Check if SOP is available for this manualId - use SOP as primary system
+            sop_id = sop_manager.get_sop_id_for_manual(str(manualId), sourceId)
+            if sop_id:
+                # Use SOP unified executor instead of old instruction graph
+                self._execute_sop_after_detection(sourceId, manualId, xyxy, frame_no, gender_data, sessionId)
+                # Still send to Kafka for backward compatibility
+                new_height, new_width = frame.shape[:2]
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                    self.send_instruction_pose(xyxy, new_width, new_height, sourceId, sessionId, manualId, gender_data, [])
+                end_time = time.time()
+                logger.info(f"Completed gender detection with SOP. Time taken: {end_time - start_time:.2f} seconds")
+                return None
+            
+            # Fallback to old system if SOP is not configured
             data=self.sessionSteps.find_one({"sessionId":sessionId})
 
             if data==None:
@@ -261,3 +277,65 @@ class ProcessFrame:
             logger.error(f"Error in gender detection: {e}")
             traceback.print_exc()
             return None
+    
+    def _execute_sop_after_detection(self, sourceId, manualId, xyxy, frame_no, things_present, sessionId=None):
+        """
+        Execute SOP unified executor after gender detection.
+        This REPLACES the old instruction_graph system when SOP is configured.
+        Converts face bounding boxes to detection format for SOP.
+        
+        Args:
+            sourceId: Source identifier
+            manualId: Manual identifier
+            xyxy: List of face bounding boxes [[x1,y1,x2,y2], ...]
+            frame_no: Frame number
+            things_present: List of gender data strings (format: "Male\nAge: (23-30)\nhappy")
+            sessionId: Session identifier
+        """
+        try:
+            # Convert face bounding boxes to detection format for SOP
+            # SOP expects: Dict[str, List[List[float]]] where each list is [x1, y1, x2, y2]
+            detections = {}
+            
+            # Convert xyxy to SOP format with "Face" class
+            if xyxy and len(xyxy) > 0:
+                # Ensure all boxes are in correct format [x1, y1, x2, y2]
+                face_boxes = []
+                for box in xyxy:
+                    if isinstance(box, list) and len(box) == 4:
+                        # Ensure all values are floats
+                        face_boxes.append([float(box[0]), float(box[1]), float(box[2]), float(box[3])])
+                detections["Face"] = face_boxes
+            else:
+                detections["Face"] = []
+            
+            # Execute SOP unified executor (REPLACES old instruction_graph)
+            sop_result = sop_manager.execute_sop(
+                sourceId=sourceId,
+                manualId=str(manualId),
+                detections=detections,
+                frame_number=frame_no,
+                timestamp=str(time.time()),
+                additional_data={
+                    "things_present": things_present,
+                    "face_boxes": xyxy,
+                    "sessionId": sessionId
+                }
+            )
+            
+            if sop_result:
+                current_activity = sop_result.get('current_activity', 'N/A')
+                cycle_count = sop_result.get('cycle_count', 0)
+                success = "✅" if sop_result.get('success') else "❌"
+                logger.info(f"[SOP] Activity: {current_activity} | Cycle: {cycle_count} | Status: {success}")
+                
+                # SOP handles instruction generation internally, so we don't need old instruction_graph
+                # The SOP result contains all the activity/cycle information
+            else:
+                logger.warning(f"SOP execution returned None for manualId {manualId} - no instruction processing")
+                # NO FALLBACK: Don't run old instruction_graph if SOP fails
+                
+        except Exception as e:
+            logger.error(f"Error in _execute_sop_after_detection: {e}")
+            traceback.print_exc()
+            # NO FALLBACK: Don't run old system on error
