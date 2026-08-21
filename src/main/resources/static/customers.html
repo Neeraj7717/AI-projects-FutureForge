@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shoppers Like You — Cart Compass</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="topnav">
+      <div class="brand"><span class="brand-mark">CC</span> Cart Compass</div>
+      <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="db-indicator"><span class="dot" id="db-dot"></span><span id="db-label">Connecting…</span></div>
+    </nav>
+
+    <div class="body-row">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main>
+      <div class="banner hidden" id="db-banner"></div>
+
+      <div class="hero-banner compact">
+        <h1>Shoppers like you</h1>
+        <p>Pick a customer to find others with the most overlapping purchase history — and see what they bought that this customer hasn't (the actual "customers like you also bought" recommendation).</p>
+        <div class="search-box" style="max-width:480px">
+          <input id="search-input" type="text" placeholder="Search a customer by name…" autocomplete="off" />
+          <div class="search-results" id="search-results"></div>
+        </div>
+      </div>
+
+      <div id="result-area" style="margin-top:24px"></div>
+    </main>
+    </div>
+
+    <footer>Cart Compass — built on CognoDB (openCypher over Bolt)</footer>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+
+    initCustomerSearch(document.getElementById("search-input"), document.getElementById("search-results"), (id) => {
+      document.getElementById("search-results").classList.remove("open");
+      loadSimilarShoppers(id);
+    });
+
+    async function loadSimilarShoppers(customerId) {
+      const area = document.getElementById("result-area");
+      area.innerHTML = `<div class="loading-state"><div class="spinner"></div></div>`;
+
+      let customer;
+      try {
+        customer = await Api.get(`/api/customers/${encodeURIComponent(customerId)}`);
+        document.getElementById("search-input").value = customer.name;
+      } catch (e) {
+        area.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><div class="title">Customer not found</div></div>`;
+        return;
+      }
+
+      try {
+        const shoppers = await Api.get(`/api/customers/${encodeURIComponent(customerId)}/similar-shoppers?limit=6`);
+
+        if (!shoppers.length) {
+          area.innerHTML = `
+            <div class="section-title">Shoppers like ${escapeHtml(customer.name)}</div>
+            <div class="empty-state">
+              <div class="icon">🧑‍🤝‍🧑</div>
+              <div class="title">No overlap found</div>
+              <div class="hint">No other customer has bought any of the same products as ${escapeHtml(customer.name)} yet.</div>
+            </div>`;
+          return;
+        }
+
+        const totalRecs = shoppers.reduce((sum, s) => sum + s.uniqueRecommendations.length, 0);
+
+        area.innerHTML = `
+          <div class="section-title">Shoppers like ${escapeHtml(customer.name)}</div>
+          <div class="stats-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
+            <div class="stat-card"><div class="value">${shoppers.length}</div><div class="label">Similar shoppers found</div></div>
+            <div class="stat-card"><div class="value">${totalRecs}</div><div class="label">Potential new recommendations</div></div>
+          </div>
+          ${shoppers.map(s => `
+            <div class="card" style="margin-bottom:14px">
+              <div style="padding:14px 18px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <strong>👤 ${escapeHtml(s.customerName)}</strong>
+                </div>
+                <span class="badge eco">${s.sharedProductCount} shared purchase${s.sharedProductCount !== 1 ? "s" : ""}</span>
+              </div>
+              ${s.uniqueRecommendations.length ? `
+                <table>
+                  <thead><tr><th>Also bought</th><th>Category</th><th>Brand</th><th style="text-align:right">Price</th></tr></thead>
+                  <tbody>
+                    ${s.uniqueRecommendations.map(p => `
+                      <tr class="clickable" onclick="location.href='${productUrl(p.id)}'">
+                        <td><div class="table-product-cell">${productThumb(p.name, p.category, 32)}<strong>${escapeHtml(p.name)}</strong></div></td>
+                        <td>${categoryBadge(p.category)}</td>
+                        <td style="color:var(--text-dim)">${escapeHtml(p.brand || "")}</td>
+                        <td style="text-align:right" class="mono">${formatPrice(p.price)}</td>
+                      </tr>`).join("")}
+                  </tbody>
+                </table>
+              ` : `<div style="padding:16px 18px;color:var(--text-faint);font-size:13px">Nothing new — they bought the same products as ${escapeHtml(customer.name)}.</div>`}
+            </div>
+          `).join("")}
+        `;
+      } catch (e) {
+        area.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><div class="title">Couldn't load similar shoppers</div><div class="hint">${escapeHtml(e.message)}</div></div>`;
+      }
+    }
+
+    const preselect = params.get("id");
+    if (preselect) {
+      loadSimilarShoppers(preselect);
+    } else {
+      document.getElementById("result-area").innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🔎</div>
+          <div class="title">Search for a customer to begin</div>
+          <div class="hint">Try "Ava", "Priya", or "Grace" to see an interesting cross-category overlap.</div>
+        </div>`;
+    }
+  </script>
+</body>
+</html>

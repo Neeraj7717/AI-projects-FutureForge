@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cart Compass</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="topnav">
+      <div class="brand"><span class="brand-mark">CC</span> Cart Compass</div>
+      <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="db-indicator"><span class="dot" id="db-dot"></span><span id="db-label">Connecting…</span></div>
+    </nav>
+
+    <div class="body-row">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main>
+      <div class="banner hidden" id="db-banner"></div>
+
+      <div class="hero-banner">
+        <h1>Fresh groceries, smarter picks</h1>
+        <p>Search any product, then trace who buys it together with what, how far that pattern extends, and which shoppers have your same taste — powered by CognoDB.</p>
+        <div class="search-box">
+          <input id="search-input" type="text" placeholder="Search products, e.g. milk, cookies, coffee, bread…" autocomplete="off" />
+          <div class="search-results" id="search-results"></div>
+        </div>
+      </div>
+
+      <div class="category-strip" id="category-strip"></div>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="value">—</div><div class="label">Customers</div></div>
+        <div class="stat-card"><div class="value">—</div><div class="label">Products</div></div>
+        <div class="stat-card"><div class="value">—</div><div class="label">Orders</div></div>
+        <div class="stat-card"><div class="value">—</div><div class="label">Reviews</div></div>
+        <div class="stat-card"><div class="value">—</div><div class="label">Co-purchase links</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🔥 Great deals — cheaper alternatives available</div>
+        <div class="product-grid" id="deals-grid"></div>
+        <div id="deals-loading" class="loading-state"><div class="spinner"></div></div>
+        <p style="font-size:12px;color:var(--text-faint);margin-top:8px">
+          Products where the same item is sold cheaper under a different brand — the "similar products" graph query, surfaced as a feed.
+        </p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Bestsellers</div>
+        <div class="product-grid" id="bestsellers-grid"></div>
+        <div id="bestsellers-loading" class="loading-state"><div class="spinner"></div></div>
+        <p style="font-size:12px;color:var(--text-faint);margin-top:8px">
+          Products with the most orders — click one to see what's frequently bought with it, and its full multi-hop recommendation graph.
+        </p>
+      </div>
+    </main>
+    </div>
+
+    <footer>Cart Compass — built on CognoDB (openCypher over Bolt)</footer>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    initProductSearch(document.getElementById("search-input"), document.getElementById("search-results"), (id) => {
+      window.location.href = productUrl(id);
+    });
+
+    async function loadStats() {
+      try {
+        const s = await Api.get("/api/stats");
+        const grid = document.getElementById("stats-grid");
+        const values = [s.customers, s.products, s.orders, s.reviews, s.coPurchaseEdges];
+        grid.querySelectorAll(".stat-card .value").forEach((el, i) => { el.textContent = values[i].toLocaleString(); });
+      } catch (e) { /* health banner already communicates this */ }
+    }
+
+    async function loadCategoryStrip() {
+      const strip = document.getElementById("category-strip");
+      try {
+        const categories = await Api.get("/api/categories");
+        strip.innerHTML = categories.map((c) => `
+          <a class="category-pill" href="${categoryUrl(c.id)}">
+            <img src="${productImage(null, c.name)}" alt="${escapeHtml(c.name)}" loading="lazy" />
+            <span>${escapeHtml(c.name)}</span>
+          </a>`).join("");
+      } catch (e) {
+        strip.innerHTML = "";
+      }
+    }
+
+    async function loadDeals() {
+      const grid = document.getElementById("deals-grid");
+      const loading = document.getElementById("deals-loading");
+      try {
+        const rows = await Api.get("/api/recommendations/deals?limit=5");
+        loading.style.display = "none";
+        if (!rows.length) {
+          grid.innerHTML = "";
+          loading.style.display = "flex";
+          loading.innerHTML = `<span style="color:var(--text-faint)">No brand-vs-brand deals in this catalog yet.</span>`;
+          return;
+        }
+        grid.innerHTML = rows.map((r) => {
+          const pct = Math.round((r.savings / r.price) * 100);
+          return `
+          <div class="product-card" onclick="location.href='${productUrl(r.cheaperProductId)}'">
+            <div class="deal-badge">${pct}% LESS</div>
+            ${wishlistButton()}
+            ${productThumbCard(r.productName, r.category)}
+            <div class="product-card-body">
+              <div class="product-card-name">${escapeHtml(r.productName)}</div>
+              <div class="product-card-sub">${escapeHtml(r.cheaperBrand || "")} vs ${escapeHtml(r.brand || "")}</div>
+              <div class="price-row">
+                <span class="new-price">${formatPrice(r.cheaperPrice)}</span>
+                <span class="old-price">${formatPrice(r.price)}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join("");
+      } catch (e) {
+        loading.innerHTML = `<span style="color:var(--red)">Failed to load: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+
+    async function loadBestsellers() {
+      const grid = document.getElementById("bestsellers-grid");
+      const loading = document.getElementById("bestsellers-loading");
+      try {
+        const rows = await Api.get("/api/recommendations/bestsellers?limit=10");
+        loading.style.display = "none";
+        if (!rows.length) {
+          grid.innerHTML = "";
+          loading.style.display = "flex";
+          loading.innerHTML = `<span style="color:var(--text-faint)">No data yet — run the seed script.</span>`;
+          return;
+        }
+        grid.innerHTML = rows.map((r) => `
+          <div class="product-card" onclick="location.href='${productUrl(r.productId)}'">
+            ${wishlistButton()}
+            ${productThumbCard(r.productName, r.category)}
+            <div class="product-card-body">
+              <div class="product-card-name">${escapeHtml(r.productName)}</div>
+              <div class="product-card-sub">${escapeHtml(r.brand || r.category || "")}</div>
+              ${ratingRow(r.avgRating)}
+              <div class="product-card-footer">
+                <span class="product-card-price">${formatPrice(r.price)}</span>
+                <span class="mono" style="font-size:11.5px;color:var(--text-faint)">${r.orderCount} orders</span>
+              </div>
+            </div>
+          </div>`).join("");
+      } catch (e) {
+        loading.innerHTML = `<span style="color:var(--red)">Failed to load: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+
+    loadStats();
+    loadCategoryStrip();
+    loadDeals();
+    loadBestsellers();
+  </script>
+</body>
+</html>

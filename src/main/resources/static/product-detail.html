@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Product — Cart Compass</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="topnav">
+      <div class="brand"><span class="brand-mark">CC</span> Cart Compass</div>
+      <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="db-indicator"><span class="dot" id="db-dot"></span><span id="db-label">Connecting…</span></div>
+    </nav>
+
+    <div class="body-row">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main>
+      <div class="banner hidden" id="db-banner"></div>
+      <div class="breadcrumb"><a href="index.html">Dashboard</a> / <span id="crumb-name">…</span></div>
+
+      <div id="content-loading" class="loading-state"><div class="spinner"></div><span>Loading product…</span></div>
+      <div id="content-error" class="empty-state" style="display:none">
+        <div class="icon">⚠️</div>
+        <div class="title">Couldn't load this product</div>
+        <div class="hint" id="content-error-msg"></div>
+        <a href="index.html" class="btn" style="margin-top:10px">Back to dashboard</a>
+      </div>
+
+      <div id="content" style="display:none">
+        <div class="product-hero">
+          <div class="product-hero-image" id="prod-hero-thumb"></div>
+          <div class="product-hero-info">
+            <span id="prod-eco"></span>
+            <h1 id="prod-name"></h1>
+            <div id="prod-rating" class="product-hero-rating"></div>
+            <div class="product-hero-price" id="prod-price"></div>
+            <div class="meta-row">
+              <span id="prod-brand" class="info-chip"></span>
+              <span id="prod-orders" style="color:var(--text-faint)"></span>
+            </div>
+            <div class="savings-alert" id="savings-alert" style="display:none">
+              <span id="savings-text"></span>
+              <a href="#compare-prices">See options ↓</a>
+            </div>
+            <div class="product-hero-actions">
+              <button class="btn primary large" id="add-to-cart-btn" onclick="handleAddToCart(this)">🛒 Add to cart</button>
+              <button class="btn large" id="wishlist-toggle-btn" onclick="handleWishlistToggle(this)">♡ Wishlist</button>
+            </div>
+            <p class="desc" id="prod-desc"></p>
+          </div>
+        </div>
+
+        <div class="section" id="compare-prices">
+          <div class="section-title" id="similar-title">Similar products</div>
+          <div class="product-grid" id="similar-grid"></div>
+          <div id="similar-empty" class="empty-state" style="display:none">
+            <div class="icon">∅</div>
+            <div class="title">Nothing else in this category</div>
+          </div>
+          <p style="font-size:12px;color:var(--text-faint);margin-top:8px" id="similar-caption">
+            Other products in the same category, cheapest first — the best-priced option is highlighted.
+          </p>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Frequently bought together</div>
+          <div class="product-grid" id="fbt-grid"></div>
+          <div id="fbt-empty" class="empty-state" style="display:none">
+            <div class="icon">∅</div>
+            <div class="title">Nothing yet</div>
+            <div class="hint">No other product has been ordered alongside this one.</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Extended recommendations (multi-hop)</div>
+          <div class="form-row">
+            <label for="hops-select" style="font-size:13px;color:var(--text-dim)">Degrees of separation:</label>
+            <select id="hops-select">
+              <option value="1">1 hop — direct co-purchases</option>
+              <option value="2" selected>2 hops</option>
+              <option value="3">3 hops</option>
+              <option value="4">4 hops (max)</option>
+            </select>
+            <span class="hop-count" id="tree-summary"></span>
+          </div>
+          <div id="graph-canvas-wrap">
+            <div id="graph-canvas" style="height:420px"></div>
+          </div>
+          <p style="font-size:12px;color:var(--text-faint);margin-top:8px">
+            Beyond 1 hop, these are "people who bought what people who bought this also bought" — recommendations a simple co-purchase count would never surface.
+          </p>
+        </div>
+      </div>
+    </main>
+    </div>
+
+    <footer>Cart Compass — built on CognoDB (openCypher over Bolt)</footer>
+  </div>
+
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/graph-render.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const productId = params.get("id");
+    let network = null;
+    let currentProduct = null;
+
+    // Decorative only - there's no real cart/wishlist concept backing this app, this is UI
+    // furniture so the product page reads like a real storefront rather than a data viewer.
+    function handleAddToCart(btn) {
+      const original = btn.textContent;
+      btn.textContent = "✓ Added";
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1600);
+    }
+    function handleWishlistToggle(btn) {
+      const active = btn.classList.toggle("active");
+      btn.textContent = active ? "❤ Wishlisted" : "♡ Wishlist";
+    }
+
+    if (!productId) {
+      document.getElementById("content-loading").style.display = "none";
+      document.getElementById("content-error").style.display = "flex";
+      document.getElementById("content-error-msg").textContent = "No product id given.";
+    } else {
+      loadProduct();
+    }
+
+    async function loadProduct() {
+      try {
+        const p = await Api.get(`/api/products/${encodeURIComponent(productId)}`);
+        currentProduct = p;
+        document.getElementById("content-loading").style.display = "none";
+        document.getElementById("content").style.display = "block";
+        document.getElementById("crumb-name").textContent = p.name;
+        document.title = `${p.name} — Cart Compass`;
+
+        applyThumb(document.getElementById("prod-hero-thumb"), p.name, p.category);
+
+        document.getElementById("prod-name").textContent = p.name;
+        document.getElementById("prod-eco").innerHTML = categoryBadge(p.category);
+        document.getElementById("prod-desc").textContent = p.description || "No description available.";
+        document.getElementById("prod-price").textContent = formatPrice(p.price);
+        document.getElementById("prod-brand").textContent = p.brand || "Unbranded";
+        document.getElementById("prod-rating").innerHTML = ratingStars(p.avgRating) + (p.reviewCount ? ` <span style="color:var(--text-faint)">(${p.reviewCount} review${p.reviewCount > 1 ? "s" : ""})</span>` : "");
+        document.getElementById("prod-orders").textContent = `Ordered ${p.orderCount} time${p.orderCount !== 1 ? "s" : ""}`;
+
+        loadSimilarProducts();
+        loadFrequentlyBoughtTogether();
+        loadGraph();
+      } catch (e) {
+        document.getElementById("content-loading").style.display = "none";
+        document.getElementById("content-error").style.display = "flex";
+        document.getElementById("content-error-msg").textContent = e.message;
+      }
+    }
+
+    async function loadSimilarProducts() {
+      const grid = document.getElementById("similar-grid");
+      const empty = document.getElementById("similar-empty");
+      const caption = document.getElementById("similar-caption");
+      const title = document.getElementById("similar-title");
+      try {
+        const rows = await Api.get(`/api/products/${encodeURIComponent(productId)}/similar?limit=10`);
+        if (!rows.length) {
+          grid.innerHTML = "";
+          empty.style.display = "flex";
+          return;
+        }
+        // The API tries an exact same-product-name match across brands first, and only falls
+        // back to same-category browsing if there isn't one - infer which happened so the
+        // copy on screen matches what's actually being shown.
+        const sameProduct = rows.every(r => r.name.toLowerCase() === currentProduct.name.toLowerCase());
+        title.textContent = sameProduct ? "Compare prices — same product, other brands" : "Similar products";
+        caption.textContent = sameProduct
+          ? "This exact product from other brands, cheapest first — the best-priced option is highlighted."
+          : "Other products in the same category, cheapest first — the best-priced option is highlighted.";
+
+        const cheapestPrice = Math.min(...rows.map(r => r.price));
+        const bestSavings = currentProduct.price - cheapestPrice;
+        const alertEl = document.getElementById("savings-alert");
+        if (bestSavings > 0) {
+          const label = sameProduct ? "cheaper alternative" : "cheaper option nearby";
+          document.getElementById("savings-text").textContent = `💰 Save up to ${formatPrice(bestSavings)} — ${label} available`;
+          alertEl.style.display = "flex";
+        } else {
+          alertEl.style.display = "none";
+        }
+
+        grid.innerHTML = rows.map(r => {
+          const isBest = r.price === cheapestPrice;
+          const savings = currentProduct.price - r.price;
+          let badge = "";
+          if (isBest) badge = `<span class="badge clean">Best price</span>`;
+          else if (savings > 0) badge = `<span class="mono" style="color:var(--green);font-size:12px">Save ${formatPrice(savings)}</span>`;
+          return `
+            <div class="product-card" onclick="location.href='${productUrl(r.id)}'">
+              ${wishlistButton()}
+              ${productThumbCard(r.name, r.category)}
+              <div class="product-card-body">
+                <div class="product-card-name">${escapeHtml(r.name)}</div>
+                <div class="product-card-sub">${escapeHtml(r.brand || r.category || "")}</div>
+                <div class="product-card-footer">
+                  <span class="product-card-price">${formatPrice(r.price)}</span>
+                  ${badge}
+                </div>
+              </div>
+            </div>`;
+        }).join("");
+      } catch (e) {
+        grid.innerHTML = `<div class="empty-state" style="color:var(--red)">Failed to load: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    async function loadFrequentlyBoughtTogether() {
+      const grid = document.getElementById("fbt-grid");
+      const empty = document.getElementById("fbt-empty");
+      try {
+        const rows = await Api.get(`/api/products/${encodeURIComponent(productId)}/frequently-bought-together?limit=10`);
+        if (!rows.length) {
+          grid.innerHTML = "";
+          empty.style.display = "flex";
+          return;
+        }
+        grid.innerHTML = rows.map(r => `
+          <div class="product-card" onclick="location.href='${productUrl(r.productId)}'">
+            ${wishlistButton()}
+            ${productThumbCard(r.productName, r.category)}
+            <div class="product-card-body">
+              <div class="product-card-name">${escapeHtml(r.productName)}</div>
+              <div class="product-card-sub">${escapeHtml(r.brand || r.category || "")}</div>
+              <div class="product-card-footer">
+                <span class="product-card-price">${formatPrice(r.price)}</span>
+                <span class="mono" style="font-size:12px;color:var(--text-faint)">${r.strength}×</span>
+              </div>
+            </div>
+          </div>`).join("");
+      } catch (e) {
+        grid.innerHTML = `<div class="empty-state" style="color:var(--red)">Failed to load: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    document.getElementById("hops-select").addEventListener("change", loadGraph);
+
+    async function loadGraph() {
+      const hops = document.getElementById("hops-select").value;
+      const summary = document.getElementById("tree-summary");
+      summary.textContent = "Loading…";
+      try {
+        const graph = await Api.get(`/api/recommendations/${encodeURIComponent(productId)}/graph?hops=${hops}`);
+        summary.textContent = `${graph.nodes.length} products, ${graph.edges.length} co-purchase links`;
+        const container = document.getElementById("graph-canvas");
+        if (network) network.destroy();
+        if (graph.edges.length === 0) {
+          container.innerHTML = `<div class="empty-state" style="padding-top:60px"><div class="icon">🛒</div><div class="title">No co-purchase data</div><div class="hint">This product hasn't been ordered alongside anything else yet.</div></div>`;
+          network = null;
+          // The +/- buttons and legend live in the wrap (so they survive graph re-renders), not
+          // inside #graph-canvas itself - with no network to show, drop them rather than leaving
+          // them bound to / describing the just-destroyed one.
+          container.parentElement.querySelector(".graph-zoom-controls")?.remove();
+          container.parentElement.querySelector(".graph-legend")?.remove();
+          return;
+        }
+        container.innerHTML = "";
+        network = renderDependencyGraph(container, graph.nodes, graph.edges, graph.rootId);
+      } catch (e) {
+        summary.textContent = "";
+        const gc = document.getElementById("graph-canvas");
+        if (network) { network.destroy(); network = null; }
+        gc.parentElement.querySelector(".graph-zoom-controls")?.remove();
+        gc.parentElement.querySelector(".graph-legend")?.remove();
+        gc.innerHTML = `<div class="empty-state" style="padding-top:60px;color:var(--red)">Failed to load: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

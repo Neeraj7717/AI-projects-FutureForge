@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Category — Cart Compass</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="topnav">
+      <div class="brand"><span class="brand-mark">CC</span> Cart Compass</div>
+      <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="db-indicator"><span class="dot" id="db-dot"></span><span id="db-label">Connecting…</span></div>
+    </nav>
+
+    <div class="body-row">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main>
+      <div class="banner hidden" id="db-banner"></div>
+      <div class="breadcrumb"><a href="index.html">Dashboard</a> / <span id="crumb-name">…</span></div>
+
+      <div id="content-loading" class="loading-state"><div class="spinner"></div><span>Loading category…</span></div>
+      <div id="content-error" class="empty-state" style="display:none">
+        <div class="icon">⚠️</div>
+        <div class="title">Couldn't load this category</div>
+        <div class="hint" id="content-error-msg"></div>
+        <a href="index.html" class="btn" style="margin-top:10px">Back to dashboard</a>
+      </div>
+
+      <div id="content" style="display:none">
+        <div class="hero-banner compact">
+          <h1 id="cat-name"></h1>
+          <p id="cat-count"></p>
+        </div>
+
+        <div class="product-grid" id="products-grid"></div>
+        <div id="products-empty" class="empty-state" style="display:none">
+          <div class="icon">∅</div>
+          <div class="title">No products in this category yet</div>
+        </div>
+      </div>
+    </main>
+    </div>
+
+    <footer>Cart Compass — built on CognoDB (openCypher over Bolt)</footer>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const categoryId = params.get("id");
+
+    if (!categoryId) {
+      document.getElementById("content-loading").style.display = "none";
+      document.getElementById("content-error").style.display = "flex";
+      document.getElementById("content-error-msg").textContent = "No category id given.";
+    } else {
+      loadCategory();
+    }
+
+    async function loadCategory() {
+      try {
+        const [category, products] = await Promise.all([
+          Api.get(`/api/categories/${encodeURIComponent(categoryId)}`),
+          Api.get(`/api/categories/${encodeURIComponent(categoryId)}/products`),
+        ]);
+
+        document.getElementById("content-loading").style.display = "none";
+        document.getElementById("content").style.display = "block";
+        document.getElementById("crumb-name").textContent = category.name;
+        document.title = `${category.name} — Cart Compass`;
+        document.getElementById("cat-name").textContent = category.name;
+        document.getElementById("cat-count").textContent = `${category.productCount} product${category.productCount !== 1 ? "s" : ""} in this category`;
+
+        const grid = document.getElementById("products-grid");
+        const empty = document.getElementById("products-empty");
+        if (!products.length) {
+          grid.innerHTML = "";
+          empty.style.display = "flex";
+          return;
+        }
+        grid.innerHTML = products.map((p) => `
+          <div class="product-card" onclick="location.href='${productUrl(p.id)}'">
+            ${wishlistButton()}
+            ${productThumbCard(p.name, p.category)}
+            <div class="product-card-body">
+              <div class="product-card-name">${escapeHtml(p.name)}</div>
+              <div class="product-card-sub">${escapeHtml(p.brand || "")}</div>
+              <div class="product-card-footer">
+                <span class="product-card-price">${formatPrice(p.price)}</span>
+              </div>
+            </div>
+          </div>`).join("");
+      } catch (e) {
+        document.getElementById("content-loading").style.display = "none";
+        document.getElementById("content-error").style.display = "flex";
+        document.getElementById("content-error-msg").textContent = e.message;
+      }
+    }
+  </script>
+</body>
+</html>

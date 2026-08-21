@@ -1,0 +1,24 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: retailgraph
+
+cognodb:
+  uri: ${COGNODB_URI:bolt://localhost:7687}
+  username: ${COGNODB_USERNAME:cognodb}
+  password: ${COGNODB_PASSWORD:}
+  database: ${COGNODB_DATABASE:neo4j}
+  connection-timeout-seconds: ${COGNODB_CONNECTION_TIMEOUT_SECONDS:10}
+  max-retry-time-seconds: ${COGNODB_MAX_RETRY_TIME_SECONDS:5}
+
+app:
+  auth:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin@123}
+
+logging:
+  level:
+    root: INFO
+    com.wexa.retailgraph: INFO

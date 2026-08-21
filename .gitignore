@@ -1,0 +1,15 @@
+target/
+*.class
+
+# env / secrets
+.env
+.env.local
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# logs
+*.log

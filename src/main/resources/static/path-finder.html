@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Discovery Path — Cart Compass</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="topnav">
+      <div class="brand"><span class="brand-mark">CC</span> Cart Compass</div>
+      <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="db-indicator"><span class="dot" id="db-dot"></span><span id="db-label">Connecting…</span></div>
+    </nav>
+
+    <div class="body-row">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main>
+      <div class="banner hidden" id="db-banner"></div>
+
+      <div class="hero-banner compact">
+        <h1>Discovery path finder</h1>
+        <p>Pick two products and find the shortest chain of shared-basket behavior connecting them — "how does interest in A eventually lead to B?"</p>
+        <div class="two-col">
+          <div>
+            <label class="field-label">From</label>
+            <div class="search-box">
+              <input id="from-input" type="text" placeholder="Search a product…" autocomplete="off" />
+              <div class="search-results" id="from-results"></div>
+            </div>
+          </div>
+          <div>
+            <label class="field-label">To</label>
+            <div class="search-box">
+              <input id="to-input" type="text" placeholder="Search a product…" autocomplete="off" />
+              <div class="search-results" id="to-results"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn primary" id="find-btn" disabled>Find discovery path</button>
+
+      <div class="section" style="margin-top:24px" id="result-section" style="display:none">
+        <div id="result-body"></div>
+      </div>
+    </main>
+    </div>
+
+    <footer>Cart Compass — built on CognoDB (openCypher over Bolt)</footer>
+  </div>
+
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/graph-render.js"></script>
+  <script>
+    let fromProductId = null;
+    let toProductId = null;
+    let network = null;
+
+    function wireSide(prefix, onPicked) {
+      const input = document.getElementById(`${prefix}-input`);
+      const results = document.getElementById(`${prefix}-results`);
+
+      initProductSearch(input, results, async (productId) => {
+        results.classList.remove("open");
+        try {
+          const p = await Api.get(`/api/products/${encodeURIComponent(productId)}`);
+          input.value = p.name;
+          onPicked(productId);
+        } catch (e) {
+          onPicked(null);
+        }
+      });
+    }
+
+    wireSide("from", (id) => { fromProductId = id; updateButton(); });
+    wireSide("to", (id) => { toProductId = id; updateButton(); });
+
+    function updateButton() {
+      document.getElementById("find-btn").disabled = !(fromProductId && toProductId);
+    }
+
+    document.getElementById("find-btn").addEventListener("click", findPath);
+
+    async function findPath() {
+      const section = document.getElementById("result-section");
+      const body = document.getElementById("result-body");
+      section.style.display = "block";
+      body.innerHTML = `<div class="loading-state"><div class="spinner"></div></div>`;
+      section.scrollIntoView({ behavior: "smooth" });
+
+      try {
+        const result = await Api.get(`/api/recommendations/path?from=${encodeURIComponent(fromProductId)}&to=${encodeURIComponent(toProductId)}`);
+        if (!result.found) {
+          body.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><div class="title">No discovery path found</div><div class="hint">These two products aren't connected through any chain of shared purchases in this graph.</div></div>`;
+          return;
+        }
+        body.innerHTML = `
+          <div class="card" style="padding:16px 20px;margin-bottom:16px">
+            <strong style="color:var(--accent)">${result.length}</strong> hop${result.length !== 1 ? "s" : ""} — ${result.nodes.map(n => escapeHtml(n.label)).join(" → ")}
+          </div>
+          <div id="graph-canvas-wrap">
+            <div id="graph-canvas" style="height:320px"></div>
+          </div>
+        `;
+        if (network) network.destroy();
+        network = renderDependencyGraph(document.getElementById("graph-canvas"), result.nodes, result.edges, result.nodes[0]?.id);
+      } catch (e) {
+        body.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><div class="title">Search failed</div><div class="hint">${escapeHtml(e.message)}</div></div>`;
+      }
+    }
+  </script>
+</body>
+</html>
